@@ -97,8 +97,8 @@ onMounted(load)
   <n-space vertical :size="16">
     <n-card title="Server">
       <n-form>
-        <n-form-item label="Public host — address clients connect to, used in client configs">
-          <n-input v-model:value="publicHost" placeholder="203.0.113.10 or vpn.example.com" style="max-width: 380px" />
+        <n-form-item label="Public host — address clients connect to, used in client configs (host only, no https://)">
+          <n-input v-model:value="publicHost" placeholder="203.0.113.10 or vpn.example.com — not https://vpn.example.com" style="max-width: 380px" />
         </n-form-item>
         <n-form-item label="Panel URL — this panel's external address, used for share links and host checking">
           <n-input v-model:value="panelUrl" placeholder="https://vpn.example.com" style="max-width: 380px" />

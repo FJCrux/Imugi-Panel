@@ -5,7 +5,7 @@ package auth
 import (
 	"crypto/rand"
 	"errors"
-	"fmt"
+	"log"
 	"math/big"
 
 	"github.com/fjcrux/mieru-web-ui/internal/store"
@@ -15,7 +15,7 @@ const passwordAlphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456
 
 // Bootstrap ensures a panel admin account exists. On first run it uses
 // envUser/envPass when provided, otherwise generates credentials and
-// prints them to stdout once (3x-ui style). Existing accounts are left
+// writes them to the log once (3x-ui style). Existing accounts are left
 // untouched.
 func Bootstrap(st store.Store, envUser, envPass string) error {
 	_, _, err := st.Admin()
@@ -47,12 +47,12 @@ func Bootstrap(st store.Store, envUser, envPass string) error {
 		return err
 	}
 	if generated {
-		fmt.Printf("\n==============================================\n")
-		fmt.Printf(" Panel admin created\n")
-		fmt.Printf("   username: %s\n", user)
-		fmt.Printf("   password: %s\n", pass)
-		fmt.Printf(" Change it in Settings after first login.\n")
-		fmt.Printf("==============================================\n\n")
+		log.Printf("\n==============================================\n"+
+			" Panel admin created\n"+
+			"   username: %s\n"+
+			"   password: %s\n"+
+			" Change it in Settings after first login.\n"+
+			"==============================================", user, pass)
 	}
 	return nil
 }
