@@ -162,6 +162,42 @@ export interface ChainKey {
   key: string
 }
 
+export interface TCPFragmentConfig {
+  enable: boolean
+  maxSleepMs: number | null
+}
+
+export interface NonceConfig {
+  type: string
+  applyToAllUDPPacket: boolean
+  minLen: number | null
+  maxLen: number | null
+  customHexStrings: string[]
+}
+
+export interface PaddingConfig {
+  maxMiddlePaddingLen: number | null
+  maxEndPaddingLen: number | null
+}
+
+export interface TrafficPatternConfig {
+  seed: number | null
+  unlockAll: boolean
+  tcpFragment: TCPFragmentConfig
+  nonce: NonceConfig
+  padding: PaddingConfig
+}
+
+export interface AdvancedConfig {
+  dns: {
+    dualStack: string
+    hosts: Record<string, string>
+  }
+  metricsLoggingInterval: string
+  userHintIsMandatory: boolean
+  trafficPattern: TrafficPatternConfig
+}
+
 export interface Settings {
   publicHost: string
   panelUrl: string

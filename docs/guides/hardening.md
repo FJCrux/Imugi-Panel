@@ -45,6 +45,16 @@ The default compose publishes the panel on `127.0.0.1` only. Reach it through an
 SSH tunnel (`ssh -L 8686:127.0.0.1:8686 user@server`) or a reverse proxy. Only
 expose it publicly behind TLS.
 
+## Crawlers are blocked out of the box
+
+The panel serves a deny-all `/robots.txt` at the site root and stamps every
+response (admin pages, share pages, health endpoint) with
+`X-Robots-Tag: noindex, nofollow, noarchive`; the SPA also carries a
+`noindex` meta tag. Nothing to configure — search engines that honor the
+standards won't index the panel even if they discover the address. This is
+politeness, not access control: it does not replace TLS, the secret base
+path, or a strong password.
+
 ## Rotate the bootstrap password
 
 On first run the panel prints a generated admin password (unless you set

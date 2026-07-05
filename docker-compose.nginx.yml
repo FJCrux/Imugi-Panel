@@ -1,0 +1,70 @@
+# Panel behind a dockerized nginx, everything in one compose network.
+#
+#   cp .env.example .env      # set PANEL_DOMAIN and PANEL_URL
+#   docker compose -f docker-compose.nginx.yml up -d
+#
+# The panel's HTTP port is NOT published to the host: nginx reaches it by
+# service name over the compose network and is the only HTTP entry point.
+# Only 80/443 (nginx) and the mieru proxy ports face the internet.
+#
+# First-run TLS bootstrap (nginx needs a certificate to start):
+#   docker compose -f docker-compose.nginx.yml run --rm -p 80:80 certbot \
+#     certonly --standalone -d your.domain --agree-tos -m you@example.com
+# After that, the certbot service renews via webroot and nginx reloads itself
+# every 6h to pick up rotated certificates.
+services:
+  mieru-web-ui:
+    image: ghcr.io/fjcrux/mieru-web-ui:${MIERU_WEB_UI_TAG:-latest}
+    container_name: mieru-web-ui
+    restart: unless-stopped
+    ports:
+      # Only the mieru proxy ports are published; nginx does not touch them
+      # (they speak the mieru protocol, not HTTP).
+      - "${PROXY_PORTS:-2012}:${PROXY_PORTS:-2012}"
+      - "${PROXY_PORTS:-2012}:${PROXY_PORTS:-2012}/udp"
+    environment:
+      PANEL_PORT: ${PANEL_PORT:-8686}
+      PROXY_PORTS: ${PROXY_PORTS:-2012}
+      PANEL_ADMIN_USER: ${PANEL_ADMIN_USER:-}
+      PANEL_ADMIN_PASSWORD: ${PANEL_ADMIN_PASSWORD:-}
+      # Required behind nginx: locks the Host header to your domain.
+      PANEL_URL: ${PANEL_URL:-https://${PANEL_DOMAIN:-}}
+      # nginx terminates TLS and forwards plain HTTP; trust its
+      # X-Forwarded-Proto so the panel doesn't warn about "plain HTTP".
+      PANEL_TRUST_PROXY: "true"
+      PANEL_BASE_PATH: ${PANEL_BASE_PATH:-}
+      SHARE_PATH: ${SHARE_PATH:-/s}
+    volumes:
+      - ./panel-data:/data
+      - ./mita-config:/etc/mita
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: mieru-nginx
+    restart: unless-stopped
+    depends_on:
+      - mieru-web-ui
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      PANEL_DOMAIN: ${PANEL_DOMAIN:?set PANEL_DOMAIN in .env}
+      PANEL_PORT: ${PANEL_PORT:-8686}
+    volumes:
+      # *.template files are rendered with envsubst by the nginx image.
+      - ./docker/nginx/templates:/etc/nginx/templates:ro
+      - ./nginx-data/letsencrypt:/etc/letsencrypt:ro
+      - ./nginx-data/webroot:/var/www/certbot:ro
+    # Reload periodically so renewed certificates are picked up.
+    command: /bin/sh -c "while :; do sleep 6h; nginx -s reload; done & nginx -g 'daemon off;'"
+
+  certbot:
+    image: certbot/certbot
+    container_name: mieru-certbot
+    restart: unless-stopped
+    volumes:
+      - ./nginx-data/letsencrypt:/etc/letsencrypt
+      - ./nginx-data/webroot:/var/www/certbot
+    # Webroot renewal loop; the initial certificate is issued with the
+    # one-shot "run --rm ... certonly --standalone" command from the header.
+    entrypoint: /bin/sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"

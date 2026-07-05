@@ -17,6 +17,7 @@ const router = createRouter({
         { path: 'network', component: () => import('../pages/NetworkPage.vue') },
         { path: 'outbounds', component: () => import('../pages/OutboundsPage.vue') },
         { path: 'chain', component: () => import('../pages/ChainPage.vue') },
+        { path: 'advanced', component: () => import('../pages/AdvancedPage.vue') },
         { path: 'settings', component: () => import('../pages/SettingsPage.vue') },
       ],
     },

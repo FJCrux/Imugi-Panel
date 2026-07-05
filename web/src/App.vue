@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { NConfigProvider, NMessageProvider, NDialogProvider, darkTheme } from 'naive-ui'
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { NConfigProvider, NMessageProvider, NDialogProvider, darkTheme, ruRU, dateRuRU, enUS, dateEnUS } from 'naive-ui'
 
 // Dark-only theme.
 const themeOverrides = {
@@ -9,10 +11,15 @@ const themeOverrides = {
     primaryColorPressed: '#5acea7',
   },
 }
+
+// Built-in naive-ui strings (confirm buttons, empty states) follow the app locale.
+const { locale } = useI18n()
+const naiveLocale = computed(() => (locale.value === 'ru' ? ruRU : enUS))
+const naiveDateLocale = computed(() => (locale.value === 'ru' ? dateRuRU : dateEnUS))
 </script>
 
 <template>
-  <n-config-provider :theme="darkTheme" :theme-overrides="themeOverrides">
+  <n-config-provider :theme="darkTheme" :theme-overrides="themeOverrides" :locale="naiveLocale" :date-locale="naiveDateLocale">
     <n-message-provider>
       <n-dialog-provider>
         <router-view />

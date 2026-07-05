@@ -24,6 +24,21 @@ func isLoopback(r *http.Request) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
+// connectionIsSecure reports whether the client reached the panel over a
+// secure channel: either the panel terminates TLS itself, or a trusted
+// reverse proxy / load balancer terminated it and told us via
+// X-Forwarded-Proto. The forwarded header is honoured only when TrustProxy is
+// set, since an untrusted client could otherwise forge it.
+func (s *Server) connectionIsSecure(r *http.Request) bool {
+	if s.TLSEnabled {
+		return true
+	}
+	if s.TrustProxy && r.Header.Get("X-Forwarded-Proto") == "https" {
+		return true
+	}
+	return false
+}
+
 type dashboardResponse struct {
 	MitaStatus     string          `json:"mitaStatus"`
 	MitaVersion    string          `json:"mitaVersion"`
@@ -40,7 +55,7 @@ type dashboardResponse struct {
 // hardeningWarnings collects non-fatal hints about the panel's exposure.
 func (s *Server) hardeningWarnings(r *http.Request) []string {
 	var w []string
-	if !s.TLSEnabled && !isLoopback(r) {
+	if !s.connectionIsSecure(r) && !isLoopback(r) {
 		w = append(w, "Served over plain HTTP on a non-loopback address. Use TLS or a reverse proxy, or tunnel to 127.0.0.1.")
 	}
 	if p, _ := s.Store.Setting("panel_url"); p == "" {
@@ -62,7 +77,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	resp := dashboardResponse{
 		Metrics:        json.RawMessage("{}"),
-		InsecureAccess: !s.TLSEnabled && !isLoopback(r),
+		InsecureAccess: !s.connectionIsSecure(r) && !isLoopback(r),
 		Warnings:       s.hardeningWarnings(r),
 	}
 

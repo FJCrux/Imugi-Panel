@@ -25,3 +25,30 @@ func TestIsLoopback(t *testing.T) {
 		}
 	}
 }
+
+func TestConnectionIsSecure(t *testing.T) {
+	cases := []struct {
+		name       string
+		tls        bool
+		trustProxy bool
+		xfProto    string
+		want       bool
+	}{
+		{"native tls", true, false, "", true},
+		{"plain http", false, false, "", false},
+		{"forwarded https, proxy trusted", false, true, "https", true},
+		{"forwarded https, proxy untrusted", false, false, "https", false},
+		{"forwarded http, proxy trusted", false, true, "http", false},
+		{"no forwarded header, proxy trusted", false, true, "", false},
+	}
+	for _, c := range cases {
+		s := &Server{TLSEnabled: c.tls, TrustProxy: c.trustProxy}
+		r := httptest.NewRequest("GET", "/api/dashboard", nil)
+		if c.xfProto != "" {
+			r.Header.Set("X-Forwarded-Proto", c.xfProto)
+		}
+		if got := s.connectionIsSecure(r); got != c.want {
+			t.Errorf("%s: connectionIsSecure = %v, want %v", c.name, got, c.want)
+		}
+	}
+}

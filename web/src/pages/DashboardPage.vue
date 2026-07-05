@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { NCard, NGrid, NGi, NStatistic, NTag, NDataTable, NCollapse, NCollapseItem, NCode, NButton, NSpace, NAlert, useMessage } from 'naive-ui'
+import { NCard, NGrid, NGi, NTag, NDataTable, NCollapse, NCollapseItem, NCode, NButton, NSpace, NAlert, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import { api, ApiError } from '../api/client'
 import type { Dashboard, SessionInfo } from '../api/client'
 
 const message = useMessage()
+const { t } = useI18n()
 const dash = ref<Dashboard | null>(null)
 const sessions = ref<SessionInfo[]>([])
 const mitaLogs = ref<string[]>([])
@@ -40,13 +42,13 @@ const statusType = computed(() =>
   dash.value?.mitaStatus === 'RUNNING' ? 'success' : dash.value?.mitaStatus === 'UNREACHABLE' ? 'error' : 'warning',
 )
 
-const sessionColumns: DataTableColumns<SessionInfo> = [
+const sessionColumns = computed<DataTableColumns<SessionInfo>>(() => [
   { title: 'ID', key: 'id' },
-  { title: 'Protocol', key: 'protocol' },
-  { title: 'Local', key: 'localAddr' },
-  { title: 'Remote', key: 'remoteAddr' },
-  { title: 'State', key: 'state' },
-]
+  { title: t('dashboard.colProtocol'), key: 'protocol' },
+  { title: t('dashboard.colLocal'), key: 'localAddr' },
+  { title: t('dashboard.colRemote'), key: 'remoteAddr' },
+  { title: t('dashboard.colState'), key: 'state' },
+])
 
 async function poll() {
   try {
@@ -62,16 +64,16 @@ async function loadLogs() {
     const res = await api.get<{ lines: string[] }>('/api/mita/logs?lines=200')
     mitaLogs.value = res.lines
   } catch (e) {
-    if (e instanceof ApiError && e.status === 501) mitaLogs.value = ['(panel is not supervising mita)']
+    if (e instanceof ApiError && e.status === 501) mitaLogs.value = [t('dashboard.notSupervising')]
   }
 }
 
 async function restartMita() {
   try {
     await api.post('/api/mita/restart')
-    message.success('Restart requested')
+    message.success(t('dashboard.restartRequested'))
   } catch (e) {
-    message.error(e instanceof ApiError ? e.message : 'Restart failed')
+    message.error(e instanceof ApiError ? e.message : t('dashboard.restartFailed'))
   }
 }
 
@@ -87,9 +89,9 @@ onUnmounted(() => window.clearInterval(timer))
 </script>
 
 <template>
-  <h2 class="page-title">Dashboard</h2>
+  <h2 class="page-title">{{ t('dashboard.title') }}</h2>
   <n-space vertical :size="16">
-    <n-alert v-if="dash?.warnings?.length" type="warning" title="Hardening">
+    <n-alert v-if="dash?.warnings?.length" type="warning" :title="t('dashboard.hardening')">
       <ul class="warnlist">
         <li v-for="(wmsg, i) in dash.warnings" :key="i">{{ wmsg }}</li>
       </ul>
@@ -99,36 +101,36 @@ onUnmounted(() => window.clearInterval(timer))
         <div class="tile">
           <div class="tile-label">mita</div>
           <n-tag :type="statusType" size="small" round>{{ dash?.mitaStatus ?? '…' }}</n-tag>
-          <div class="tile-sub">v{{ dash?.mitaVersion || '-' }} · up {{ fmtUptime(dash?.mitaUptimeSeconds ?? 0) }}</div>
+          <div class="tile-sub">{{ t('dashboard.mitaSub', { version: dash?.mitaVersion || '-', uptime: fmtUptime(dash?.mitaUptimeSeconds ?? 0) }) }}</div>
         </div>
       </n-gi>
       <n-gi span="5 m:1">
-        <div class="tile"><div class="tile-label">Users</div><div class="tile-value">{{ dash?.userCount ?? 0 }}</div></div>
+        <div class="tile"><div class="tile-label">{{ t('dashboard.users') }}</div><div class="tile-value">{{ dash?.userCount ?? 0 }}</div></div>
       </n-gi>
       <n-gi span="5 m:1">
-        <div class="tile"><div class="tile-label">Active sessions</div><div class="tile-value">{{ dash?.sessionCount ?? 0 }}</div></div>
+        <div class="tile"><div class="tile-label">{{ t('dashboard.activeSessions') }}</div><div class="tile-value">{{ dash?.sessionCount ?? 0 }}</div></div>
       </n-gi>
       <n-gi span="5 m:1">
-        <div class="tile"><div class="tile-label">Download</div><div class="tile-value">{{ fmtBytes(traffic.down) }}</div></div>
+        <div class="tile"><div class="tile-label">{{ t('dashboard.download') }}</div><div class="tile-value">{{ fmtBytes(traffic.down) }}</div></div>
       </n-gi>
       <n-gi span="5 m:1">
-        <div class="tile"><div class="tile-label">Upload</div><div class="tile-value">{{ fmtBytes(traffic.up) }}</div></div>
+        <div class="tile"><div class="tile-label">{{ t('dashboard.upload') }}</div><div class="tile-value">{{ fmtBytes(traffic.up) }}</div></div>
       </n-gi>
     </n-grid>
 
-    <n-card title="Active sessions">
+    <n-card :title="t('dashboard.activeSessions')">
       <n-data-table :columns="sessionColumns" :data="sessions" :row-key="(s: SessionInfo) => s.id" size="small" />
     </n-card>
 
     <n-card title="mita">
       <template #header-extra>
-        <n-button size="small" type="warning" secondary @click="restartMita">Restart mita</n-button>
+        <n-button size="small" type="warning" secondary @click="restartMita">{{ t('dashboard.restartMita') }}</n-button>
       </template>
       <n-collapse @item-header-click="loadLogs">
-        <n-collapse-item title="Logs (last 200 lines)" name="logs">
-          <n-code :code="mitaLogs.join('\n') || '(empty)'" language="text" word-wrap />
+        <n-collapse-item :title="t('dashboard.logs')" name="logs">
+          <n-code :code="mitaLogs.join('\n') || t('dashboard.empty')" language="text" word-wrap />
         </n-collapse-item>
-        <n-collapse-item title="Raw metrics" name="metrics">
+        <n-collapse-item :title="t('dashboard.rawMetrics')" name="metrics">
           <n-code :code="JSON.stringify(dash?.metrics ?? {}, null, 2)" language="json" word-wrap />
         </n-collapse-item>
       </n-collapse>

@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { NCard, NForm, NFormItem, NInput, NButton, NSpace, NAlert, NText, useMessage, useDialog } from 'naive-ui'
+import { NCard, NForm, NFormItem, NInput, NButton, NSpace, NAlert, useMessage, useDialog } from 'naive-ui'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { api, ApiError } from '../api/client'
 import type { Settings } from '../api/client'
+import HelpLabel from '../components/HelpLabel.vue'
 
 const message = useMessage()
 const dialog = useDialog()
 const router = useRouter()
+const { t } = useI18n()
 
 const publicHost = ref('')
 const panelUrl = ref('')
@@ -27,7 +30,7 @@ async function load() {
     sharePath.value = s.sharePath
     restartPending.value = s.restartPending
   } catch (e) {
-    message.error(e instanceof ApiError ? e.message : 'Failed to load settings')
+    message.error(e instanceof ApiError ? e.message : t('settings.loadFailed'))
   }
 }
 
@@ -39,21 +42,19 @@ async function saveServer() {
       basePath: basePath.value,
       sharePath: sharePath.value,
     })
-    message.success('Saved')
+    message.success(t('settings.saved'))
     await load()
   } catch (e) {
-    message.error(e instanceof ApiError ? e.message : 'Save failed')
+    message.error(e instanceof ApiError ? e.message : t('common.saveFailed'))
   }
 }
 
 function confirmRestart() {
   dialog.warning({
-    title: 'Restart panel',
-    content:
-      'The panel briefly goes offline and comes back with the current settings applied. ' +
-      'This works when the container has a restart policy (the default compose does).',
-    positiveText: 'Restart',
-    negativeText: 'Cancel',
+    title: t('settings.restartTitle'),
+    content: t('settings.restartBody'),
+    positiveText: t('settings.restartTitle'),
+    negativeText: t('common.cancel'),
     onPositiveClick: restartPanel,
   })
 }
@@ -68,10 +69,10 @@ async function restartPanel() {
       sharePath: sharePath.value,
     })
     await api.post('/api/panel/restart')
-    message.info('Panel is restarting, reconnecting...')
+    message.info(t('settings.restarting'))
     setTimeout(() => window.location.reload(), 5000)
   } catch (e) {
-    message.error(e instanceof ApiError ? e.message : 'Restart failed')
+    message.error(e instanceof ApiError ? e.message : t('settings.restartFailed'))
   }
 }
 
@@ -82,10 +83,10 @@ async function changePassword() {
       newUsername: newUsername.value,
       newPassword: newPassword.value,
     })
-    message.success('Credentials changed, log in again')
+    message.success(t('settings.credsChanged'))
     router.push('/login')
   } catch (e) {
-    message.error(e instanceof ApiError ? e.message : 'Change failed')
+    message.error(e instanceof ApiError ? e.message : t('settings.changeFailed'))
   }
 }
 
@@ -93,60 +94,72 @@ onMounted(load)
 </script>
 
 <template>
-  <h2 class="page-title">Settings</h2>
+  <h2 class="page-title">{{ t('settings.title') }}</h2>
   <n-space vertical :size="16">
-    <n-card title="Server">
+    <n-card :title="t('settings.serverTitle')">
+      <n-alert type="info" :show-icon="false" style="margin-bottom: 16px">
+        {{ t('settings.serverIntro') }}
+      </n-alert>
       <n-form>
-        <n-form-item label="Public host — address clients connect to, used in client configs (host only, no https://)">
-          <n-input v-model:value="publicHost" placeholder="203.0.113.10 or vpn.example.com — not https://vpn.example.com" style="max-width: 380px" />
+        <n-form-item>
+          <template #label>
+            <HelpLabel :label="t('settings.publicHost')" :help="t('settings.publicHostHelp')" />
+          </template>
+          <n-input v-model:value="publicHost" :placeholder="t('settings.publicHostPlaceholder')" style="max-width: 380px" />
+          <template #feedback>{{ t('settings.publicHostHint') }}</template>
         </n-form-item>
-        <n-form-item label="Panel URL — this panel's external address, used for share links and host checking">
+        <n-form-item>
+          <template #label>
+            <HelpLabel :label="t('settings.panelUrl')" :help="t('settings.panelUrlHelp')" />
+          </template>
           <n-input v-model:value="panelUrl" placeholder="https://vpn.example.com" style="max-width: 380px" />
+          <template #feedback>{{ t('settings.panelUrlHint') }}</template>
         </n-form-item>
-        <n-button type="primary" @click="saveServer">Save</n-button>
+        <n-button type="primary" @click="saveServer">{{ t('common.save') }}</n-button>
       </n-form>
     </n-card>
 
-    <n-card title="Paths">
-      <n-alert v-if="restartPending" type="warning" title="Restart required" style="margin-bottom: 14px">
-        Path settings have changed but the panel is still running the old ones.
-        Use <b>Save &amp; restart panel</b> below to apply them.
+    <n-card :title="t('settings.pathsTitle')">
+      <n-alert v-if="restartPending" type="warning" :title="t('settings.restartRequired')" style="margin-bottom: 14px">
+        {{ t('settings.restartPendingBody') }}
       </n-alert>
       <n-alert type="info" :show-icon="false" style="margin-bottom: 14px">
-        Serve the admin panel under a secret prefix (obscurity), and place share
-        links on a separate public prefix so they don't reveal it. Changes take
-        effect after restarting the panel (restart the container:
-        <n-text code>docker compose restart</n-text>). Leave the base path empty
-        to serve at the root.
+        {{ t('settings.pathsAlert') }}
       </n-alert>
       <n-form>
-        <n-form-item label="Panel base path (secret admin prefix)">
-          <n-input v-model:value="basePath" placeholder="empty = root, e.g. /a7Fq2xK9" style="max-width: 380px" />
+        <n-form-item>
+          <template #label>
+            <HelpLabel :label="t('settings.basePath')" :help="t('settings.basePathHelp')" />
+          </template>
+          <n-input v-model:value="basePath" :placeholder="t('settings.basePathPlaceholder')" style="max-width: 380px" />
         </n-form-item>
-        <n-form-item label="Share path (public prefix for share links)">
+        <n-form-item>
+          <template #label>
+            <HelpLabel :label="t('settings.sharePath')" :help="t('settings.sharePathHelp')" />
+          </template>
           <n-input v-model:value="sharePath" placeholder="/s" style="max-width: 380px" />
         </n-form-item>
         <n-space>
-          <n-button type="primary" @click="saveServer">Save</n-button>
-          <n-button type="warning" secondary @click="confirmRestart">Save &amp; restart panel</n-button>
+          <n-button type="primary" @click="saveServer">{{ t('common.save') }}</n-button>
+          <n-button type="warning" secondary @click="confirmRestart">{{ t('settings.saveRestart') }}</n-button>
         </n-space>
       </n-form>
     </n-card>
 
-    <n-card title="Panel admin">
+    <n-card :title="t('settings.adminTitle')">
       <n-form style="max-width: 380px">
-        <n-form-item label="Current password">
+        <n-form-item :label="t('settings.currentPassword')">
           <n-input v-model:value="currentPassword" type="password" show-password-on="click" />
         </n-form-item>
-        <n-form-item label="New username (optional)">
-          <n-input v-model:value="newUsername" placeholder="keep current" />
+        <n-form-item :label="t('settings.newUsername')">
+          <n-input v-model:value="newUsername" :placeholder="t('settings.newUsernamePlaceholder')" />
         </n-form-item>
-        <n-form-item label="New password (min 8 characters)">
+        <n-form-item :label="t('settings.newPassword')">
           <n-input v-model:value="newPassword" type="password" show-password-on="click" />
         </n-form-item>
-        <n-button type="primary" @click="changePassword">Change credentials</n-button>
+        <n-button type="primary" @click="changePassword">{{ t('settings.changeCreds') }}</n-button>
       </n-form>
-      <p class="hint">Changing credentials logs out every session, including this one.</p>
+      <p class="hint">{{ t('settings.logoutNote') }}</p>
     </n-card>
   </n-space>
 </template>

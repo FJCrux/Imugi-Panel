@@ -40,6 +40,15 @@ func envOr(key, def string) string {
 	return def
 }
 
+// boolEnv reads a boolean environment flag (true/1/yes/on, case-insensitive).
+func boolEnv(key string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(key))) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
+}
+
 // seedSetting stores value under key only if the key is currently unset and
 // value is non-empty (first-run seeding from the environment).
 func seedSetting(st store.Store, key, value string) {
@@ -70,6 +79,16 @@ func normalizePath(p string) string {
 		p = "/" + p
 	}
 	return strings.TrimRight(p, "/")
+}
+
+// noindex tells crawlers to stay away from every page the panel serves
+// (admin SPA, share pages, health endpoint). robots.txt below is the polite
+// version; the header also covers crawlers that only honor per-response tags.
+func noindex(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Robots-Tag", "noindex, nofollow, noarchive")
+		next.ServeHTTP(w, r)
+	})
 }
 
 // metricsCollector samples panel/mita state for the OTel exporter.
@@ -118,6 +137,10 @@ func main() {
 	mitaBinary := envOr("MITA_BINARY", "/usr/local/bin/mita")
 	tlsCert := os.Getenv("PANEL_TLS_CERT")
 	tlsKey := os.Getenv("PANEL_TLS_KEY")
+	// Trust X-Forwarded-* from a reverse proxy / load balancer in front of the
+	// panel (e.g. a TLS-terminating balancer). Enable only when such a proxy is
+	// present, or clients could forge these headers.
+	trustProxy := boolEnv("PANEL_TRUST_PROXY")
 
 	st, err := store.OpenSQLite(filepath.Join(dataDir, "panel.db"))
 	if err != nil {
@@ -131,6 +154,7 @@ func main() {
 
 	// Seed URL/path settings from the environment on first run; they are
 	// editable in Settings afterwards. Path changes take effect on restart.
+	seedSetting(st, "public_host", strings.TrimSpace(os.Getenv("PUBLIC_HOST")))
 	seedSetting(st, "panel_url", strings.TrimRight(os.Getenv("PANEL_URL"), "/"))
 	seedSetting(st, "base_path", os.Getenv("PANEL_BASE_PATH"))
 	seedSetting(st, "share_path", os.Getenv("SHARE_PATH"))
@@ -209,7 +233,7 @@ func main() {
 	}
 
 	a := auth.New(st, auth.DefaultSessionTTL, tlsCert != "")
-	srv := &api.Server{Mita: mita, Store: st, Auth: a, Geo: geo, Peers: peers, SharePath: sharePath, PortsManaged: proxyPorts != "", PanelPort: panelPort, TLSEnabled: tlsCert != ""}
+	srv := &api.Server{Mita: mita, Store: st, Auth: a, Geo: geo, Peers: peers, SharePath: sharePath, PortsManaged: proxyPorts != "", PanelPort: panelPort, TLSEnabled: tlsCert != "", TrustProxy: trustProxy}
 	srv.ActiveBasePath = basePath
 	srv.ActiveSharePath = sharePath
 	// Restart = graceful shutdown; a Docker restart policy brings the panel
@@ -232,6 +256,10 @@ func main() {
 
 	root := http.NewServeMux()
 	root.HandleFunc("GET /healthz", srv.HandleHealth)
+	root.HandleFunc("GET /robots.txt", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, _ = w.Write([]byte("User-agent: *\nDisallow: /\n"))
+	})
 	// Public share pages live under their own prefix, not under basePath, so a
 	// shared link never reveals the admin path.
 	root.HandleFunc("GET "+sharePath+"/{token}", srv.HandlePublicSharePage)
@@ -266,7 +294,7 @@ func main() {
 
 	// Reject requests with an unexpected Host (when a panel URL is configured),
 	// then count them if metrics are on.
-	var handler http.Handler = srv.HostGuard(root)
+	var handler http.Handler = noindex(srv.HostGuard(root))
 	if reqMiddleware != nil {
 		handler = reqMiddleware(handler)
 	}

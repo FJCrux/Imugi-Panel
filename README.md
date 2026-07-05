@@ -1,14 +1,23 @@
-# mieru-web-ui
+# Mieru Web UI
 
 [![CI](https://github.com/fjcrux/mieru-web-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/fjcrux/mieru-web-ui/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
 A web admin panel for the [mieru](https://github.com/enfein/mieru) proxy server
 (`mita`), in the spirit of 3x-ui for Xray. Manage users, ports, routing, and
-share links from the browser.
+share links from the browser. English and Russian UI.
 
 Single Go binary with the Vue SPA embedded, shipped as one Docker image that
 bundles and supervises `mita`.
+
+![Dashboard](docs/screenshots/dashboard.png)
+
+<p align="center">
+  <img src="docs/screenshots/users.png" width="49%" alt="Users" />
+  <img src="docs/screenshots/routing.png" width="49%" alt="Routing" />
+  <img src="docs/screenshots/advanced.png" width="49%" alt="Advanced tuning" />
+  <img src="docs/screenshots/share.png" width="49%" alt="Share links and QR" />
+</p>
 
 ## Features
 
@@ -21,9 +30,16 @@ bundles and supervises `mita`.
   GeoIP category (xray `geoip.dat`). See [routing](docs/guides/geoip-routing.md).
 - **Panel chaining** - route egress through another panel with a pasted key.
   See [chaining](docs/guides/chaining-panels.md).
+- **Advanced mieru tuning** - traffic obfuscation (fragmentation, nonce,
+  padding), DNS dual-stack preference and static hosts, mandatory user hint.
+  Every field has an explanatory tooltip.
 - **Metrics** - OpenTelemetry (OTLP / Prometheus). See [metrics](docs/guides/metrics.md).
-- **Hardening** - TLS, secret base path, Host validation, rate-limited login.
+- **Hardening** - TLS, secret base path, Host validation, rate-limited login,
+  crawler blocking (`robots.txt` + `X-Robots-Tag`).
   See [hardening](docs/guides/hardening.md).
+- **Localization** - English and Russian out of the box; add a language by
+  dropping a JSON file into [`web/src/locales`](web/src/locales/)
+  (contributions welcome).
 
 ## Quick start (Docker)
 
@@ -49,6 +65,14 @@ bridge mode. Reach the panel via an SSH tunnel (or a
 ssh -L 8686:127.0.0.1:8686 user@your-server   # then open http://localhost:8686
 ```
 
+For a production setup with a domain, use the bundled nginx compose instead —
+it terminates TLS in a dockerized nginx on the same network and never exposes
+the panel port itself:
+
+```bash
+docker compose -f docker-compose.nginx.yml up -d   # see the reverse-proxy guide
+```
+
 First login is `admin` with the printed password. Change it under **Settings**.
 
 ### First-time setup
@@ -64,6 +88,11 @@ First login is `admin` with the printed password. Change it under **Settings**.
 All options live in `.env` - see [`.env.example`](.env.example) for the full,
 commented list (ports, admin, TLS, panel URL, base path, share path, GeoIP,
 metrics). `docker compose` reads `.env` automatically.
+
+For local compose tweaks (extra networks, published ports, mounts, limits)
+copy [`docker-compose.override.example.yml`](docker-compose.override.example.yml)
+to `docker-compose.override.yml` — compose merges it automatically and it's
+gitignored, so updates never conflict with your changes.
 
 ## How it works
 

@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { h, ref, onMounted } from 'vue'
+import { h, ref, computed, onMounted } from 'vue'
 import {
   NButton, NCard, NDataTable, NDrawer, NDrawerContent, NForm, NFormItem, NInput,
   NInputNumber, NSpace, NSwitch, NTag, NPopconfirm, useMessage,
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import { api, ApiError } from '../api/client'
 import type { UserInfo, Quota } from '../api/client'
 import ShareModal from '../components/ShareModal.vue'
+import HelpLabel from '../components/HelpLabel.vue'
 
 const message = useMessage()
+const { t } = useI18n()
 const users = ref<UserInfo[]>([])
 const loading = ref(false)
 
@@ -40,53 +43,53 @@ function trafficOf(u: UserInfo): string {
   return `↓ ${fmtBytes(down)} / ↑ ${fmtBytes(up)}`
 }
 
-const columns: DataTableColumns<UserInfo> = [
-  { title: 'Name', key: 'name' },
+const columns = computed<DataTableColumns<UserInfo>>(() => [
+  { title: t('users.name'), key: 'name' },
   {
-    title: 'Quotas',
+    title: t('users.colQuotas'),
     key: 'quotas',
     render: (u) =>
       u.quotas.length
         ? u.quotas.map((q) => h(NTag, { size: 'small', style: 'margin-right:4px' }, { default: () => `${q.megabytes} MB / ${q.days}d` }))
         : '—',
   },
-  { title: 'Traffic', key: 'traffic', render: trafficOf },
+  { title: t('users.colTraffic'), key: 'traffic', render: trafficOf },
   {
-    title: 'Share',
+    title: t('users.colShare'),
     key: 'share',
     render: (u) =>
       h(
         NButton,
         { size: 'small', disabled: !u.hasSecret, onClick: () => (shareUser.value = u.name) },
-        { default: () => (u.hasSecret ? 'Share' : 'No password stored') },
+        { default: () => (u.hasSecret ? t('users.share') : t('users.noPassword')) },
       ),
   },
   {
-    title: 'Actions',
+    title: t('common.actions'),
     key: 'actions',
     render: (u) =>
       h(NSpace, null, {
         default: () => [
-          h(NButton, { size: 'small', onClick: () => openEdit(u) }, { default: () => 'Edit' }),
+          h(NButton, { size: 'small', onClick: () => openEdit(u) }, { default: () => t('common.edit') }),
           h(
             NPopconfirm,
             { onPositiveClick: () => removeUser(u.name) },
             {
-              trigger: () => h(NButton, { size: 'small', type: 'error', quaternary: true }, { default: () => 'Delete' }),
-              default: () => `Delete user ${u.name}?`,
+              trigger: () => h(NButton, { size: 'small', type: 'error', quaternary: true }, { default: () => t('common.delete') }),
+              default: () => t('users.confirmDelete', { name: u.name }),
             },
           ),
         ],
       }),
   },
-]
+])
 
 async function load() {
   loading.value = true
   try {
     users.value = await api.get<UserInfo[]>('/api/users')
   } catch (e) {
-    message.error(e instanceof ApiError ? e.message : 'Failed to load users')
+    message.error(e instanceof ApiError ? e.message : t('users.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -119,25 +122,25 @@ async function save() {
   try {
     if (editingName.value === null) {
       await api.post('/api/users', { name: form.value.name, ...body })
-      message.success('User created')
+      message.success(t('users.created'))
     } else {
       await api.put(`/api/users/${encodeURIComponent(editingName.value)}`, body)
-      message.success('User updated')
+      message.success(t('users.updated'))
     }
     drawerOpen.value = false
     await load()
   } catch (e) {
-    message.error(e instanceof ApiError ? e.message : 'Save failed')
+    message.error(e instanceof ApiError ? e.message : t('common.saveFailed'))
   }
 }
 
 async function removeUser(name: string) {
   try {
     await api.del(`/api/users/${encodeURIComponent(name)}`)
-    message.success('User deleted')
+    message.success(t('users.deleted'))
     await load()
   } catch (e) {
-    message.error(e instanceof ApiError ? e.message : 'Delete failed')
+    message.error(e instanceof ApiError ? e.message : t('common.deleteFailed'))
   }
 }
 
@@ -145,45 +148,60 @@ onMounted(load)
 </script>
 
 <template>
-  <n-card title="Users">
+  <n-card :title="t('users.title')">
     <template #header-extra>
-      <n-button type="primary" @click="openCreate">Add user</n-button>
+      <n-button type="primary" @click="openCreate">{{ t('users.addUser') }}</n-button>
     </template>
     <n-data-table :columns="columns" :data="users" :loading="loading" :row-key="(u: UserInfo) => u.name" />
   </n-card>
 
   <n-drawer v-model:show="drawerOpen" :width="420">
-    <n-drawer-content :title="editingName === null ? 'Add user' : `Edit ${editingName}`">
+    <n-drawer-content :title="editingName === null ? t('users.addUser') : t('users.editUser', { name: editingName })">
       <n-form>
-        <n-form-item v-if="editingName === null" label="Name">
+        <n-form-item v-if="editingName === null">
+          <template #label>
+            <HelpLabel :label="t('users.name')" :help="t('users.nameHelp')" />
+          </template>
           <n-input v-model:value="form.name" placeholder="username" />
         </n-form-item>
-        <n-form-item :label="editingName === null ? 'Password' : 'New password (leave empty to keep)'">
+        <n-form-item>
+          <template #label>
+            <HelpLabel
+              :label="editingName === null ? t('users.password') : t('users.passwordKeep')"
+              :help="t('users.passwordHelp')"
+            />
+          </template>
           <n-input v-model:value="form.password" type="password" show-password-on="click" />
         </n-form-item>
-        <n-form-item label="Allow connections to private IPs">
+        <n-form-item>
+          <template #label>
+            <HelpLabel :label="t('users.allowPrivate')" :help="t('users.allowPrivateHelp')" />
+          </template>
           <n-switch v-model:value="form.allowPrivateIP" />
         </n-form-item>
-        <n-form-item label="Quotas (traffic cap per rolling window)">
+        <n-form-item>
+          <template #label>
+            <HelpLabel :label="t('users.quotas')" :help="t('users.quotasHelp')" />
+          </template>
           <n-space vertical style="width: 100%">
             <n-space v-for="(q, i) in quotas" :key="i" align="center">
               <n-input-number v-model:value="q.megabytes" :min="1" :step="1024">
                 <template #suffix>MB</template>
               </n-input-number>
-              <span>per</span>
+              <span>{{ t('users.per') }}</span>
               <n-input-number v-model:value="q.days" :min="1" :max="365">
-                <template #suffix>days</template>
+                <template #suffix>{{ t('users.days') }}</template>
               </n-input-number>
               <n-button size="tiny" quaternary type="error" @click="quotas.splice(i, 1)">✕</n-button>
             </n-space>
-            <n-button size="small" dashed @click="addQuota">Add quota</n-button>
+            <n-button size="small" dashed @click="addQuota">{{ t('users.addQuota') }}</n-button>
           </n-space>
         </n-form-item>
       </n-form>
       <template #footer>
         <n-space>
-          <n-button @click="drawerOpen = false">Cancel</n-button>
-          <n-button type="primary" @click="save">Save</n-button>
+          <n-button @click="drawerOpen = false">{{ t('common.cancel') }}</n-button>
+          <n-button type="primary" @click="save">{{ t('common.save') }}</n-button>
         </n-space>
       </template>
     </n-drawer-content>

@@ -1,0 +1,46 @@
+# Local compose tweaks WITHOUT touching git-tracked files.
+#
+#   cp docker-compose.override.example.yml docker-compose.override.yml
+#
+# docker compose merges docker-compose.override.yml automatically on every
+# `docker compose up` (no -f flags needed), and the file is gitignored — so
+# pulls never conflict with your local networking/port choices.
+# Everything below is optional; keep only the sections you need.
+services:
+  mieru-web-ui:
+    # No-op (same as base) so the file stays valid while everything below is
+    # commented out.
+    restart: unless-stopped
+    # --- publish the panel on all interfaces (default is loopback only) ---
+    # Port lists are appended (not replaced) when merging, so to change the
+    # panel publish rather than add one, set PANEL_BIND_IP in .env instead.
+    # Overrides are best for *adding* things:
+    # ports:
+    #   - "8443:8686"
+
+    # --- join an existing reverse-proxy network (dockerized nginx/NPM/traefik) ---
+    # Let the proxy reach the panel as http://mieru-web-ui:8686 and don't
+    # publish the panel port at all (set PANEL_BIND_IP=127.0.0.1 in .env).
+    # networks:
+    #   - default
+    #   - proxy
+
+    # --- host networking (wide port ranges without enumerating them) ---
+    # Replaces bridge networking; remember PANEL_BIND=127.0.0.1 in .env so the
+    # panel stays on loopback.
+    # network_mode: host
+
+    # --- resource limits ---
+    # mem_limit: 512m
+    # cpus: "1.0"
+
+    # --- extra mounts (own geoip datasets, TLS certs) ---
+    # volumes:
+    #   - ./geoip:/data/geoip
+    #   - ./tls:/data/tls:ro
+
+# Needed only for the reverse-proxy network section above:
+# networks:
+#   proxy:
+#     external: true
+#     name: nginx_default   # the network your proxy is attached to

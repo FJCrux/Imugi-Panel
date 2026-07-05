@@ -43,6 +43,11 @@ type Server struct {
 	// TLSEnabled is true when the panel serves HTTPS; when false the
 	// dashboard shows an insecure-connection warning on non-loopback access.
 	TLSEnabled bool
+	// TrustProxy makes the panel believe X-Forwarded-Proto from the reverse
+	// proxy / load balancer in front of it (so a TLS-terminating balancer
+	// silences the plain-HTTP warning). Only enable when such a proxy is
+	// actually present and reachable clients can't forge the header.
+	TrustProxy bool
 }
 
 // Routes returns the /api handler tree with auth applied.
@@ -63,6 +68,9 @@ func (s *Server) Routes() http.Handler {
 
 	authed.HandleFunc("GET /api/config/network", s.handleGetNetwork)
 	authed.HandleFunc("PUT /api/config/network", s.handlePutNetwork)
+
+	authed.HandleFunc("GET /api/config/advanced", s.handleGetAdvanced)
+	authed.HandleFunc("PUT /api/config/advanced", s.handlePutAdvanced)
 
 	authed.HandleFunc("GET /api/config/egress", s.handleGetEgress)
 	authed.HandleFunc("PUT /api/config/egress", s.handlePutEgress)
