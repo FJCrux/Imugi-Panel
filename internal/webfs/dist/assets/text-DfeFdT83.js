@@ -1,4 +1,4 @@
-import{n as C,p as i,d as B,i as l,q as $,v as h,y as z,z as c,aU as T,aB as R}from"./index-BuNiYHKx.js";import{u as S}from"./Space-B5dQOTQD.js";const V=C("text",`
+import{n as C,p as i,d as B,i as l,q as $,v as h,y as z,z as c,aU as T,aB as R}from"./index-iR2p-6Dj.js";import{u as S}from"./Space-BSrt9nIc.js";const V=C("text",`
  transition: color .3s var(--n-bezier);
  color: var(--n-text-color);
 `,[i("strong",`

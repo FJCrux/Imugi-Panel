@@ -6,12 +6,35 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"time"
 
 	pb "github.com/enfein/mieru/v3/pkg/appctl/appctlpb"
 	"google.golang.org/protobuf/proto"
 )
 
 var userNameRe = regexp.MustCompile(`^[a-zA-Z0-9._-]{1,64}$`)
+
+// onlineWindow is how recently a user must have transferred data to count as
+// "online". mita has no per-session user attribution, so activity is inferred
+// from the per-user traffic counters' time-series history.
+const onlineWindow = 5 * time.Minute
+
+// lastActiveMillis returns the most recent Unix-millis timestamp at which the
+// user transferred any data, derived from the history of their traffic
+// counters (upload/download bytes are COUNTER_TIME_SERIES). Returns 0 when the
+// user has never had traffic.
+func lastActiveMillis(item *pb.UserWithMetrics) int64 {
+	var latest int64
+	for _, m := range item.GetMetrics() {
+		for _, h := range m.GetHistory() {
+			// Only windows that actually recorded traffic mark activity.
+			if h.GetDelta() > 0 && h.GetTimeUnixMilli() > latest {
+				latest = h.GetTimeUnixMilli()
+			}
+		}
+	}
+	return latest
+}
 
 // Quota mirrors mita's per-user quota (traffic cap over a rolling window).
 type Quota struct {
@@ -26,6 +49,10 @@ type userInfo struct {
 	HasSecret      bool    `json:"hasSecret"`
 	// Traffic metrics from GetUsers; zero when the user has no traffic.
 	Metrics map[string]int64 `json:"metrics"`
+	// LastActiveUnixMs is when the user last transferred data (0 = never),
+	// inferred from traffic-counter history since mita can't map sessions to
+	// users. The UI shows "online" when this is within the last few minutes.
+	LastActiveUnixMs int64 `json:"lastActiveUnixMs"`
 }
 
 func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
@@ -59,6 +86,7 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 		for _, m := range item.GetMetrics() {
 			info.Metrics[m.GetName()] = m.GetValue()
 		}
+		info.LastActiveUnixMs = lastActiveMillis(item)
 		out = append(out, info)
 	}
 	writeJSON(w, http.StatusOK, out)

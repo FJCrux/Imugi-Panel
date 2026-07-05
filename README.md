@@ -83,6 +83,17 @@ First login is `admin` with the printed password. Change it under **Settings**.
 3. **Users**: add a user; the proxy starts once there's a user and a port.
 4. **Users → Share**: hand out the link or QR.
 
+## Client apps
+
+Users connect with any mieru-capable client: open the **Share** dialog, then
+import the `mieru://` / `mierus://` link or scan the QR. Recommended apps:
+
+- **Android** — [NekoBox](https://github.com/MatsuriDayo/NekoBoxForAndroid) (+ [mieru plugin](https://github.com/enfein/NekoBoxPlugins)), [Exclave](https://github.com/dyhkwong/Exclave), [Karing](https://karing.app/), or [ClashMi](https://clashmi.app/)
+- **iOS** — [Shadowrocket](https://apps.apple.com/app/id932747118), [Karing](https://karing.app/), or [ClashMi](https://clashmi.app/)
+- **Windows / macOS / Linux** — [Mihomo Party](https://mihomo.party/), [Clash Verge Rev](https://www.clashverge.dev/), or the official [mieru CLI](https://github.com/enfein/mieru/blob/main/docs/client-install.md)
+
+mieru maintains the [full, up-to-date client list](https://github.com/enfein/mieru#third-party-client-software). Apps that read a Clash/sing-box config can import the downloadable JSON from the Share dialog instead of the link.
+
 ## Configuration
 
 All options live in `.env` - see [`.env.example`](.env.example) for the full,

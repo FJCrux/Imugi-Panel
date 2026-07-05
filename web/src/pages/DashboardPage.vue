@@ -108,7 +108,11 @@ onUnmounted(() => window.clearInterval(timer))
         <div class="tile"><div class="tile-label">{{ t('dashboard.users') }}</div><div class="tile-value">{{ dash?.userCount ?? 0 }}</div></div>
       </n-gi>
       <n-gi span="5 m:1">
-        <div class="tile"><div class="tile-label">{{ t('dashboard.activeSessions') }}</div><div class="tile-value">{{ dash?.sessionCount ?? 0 }}</div></div>
+        <div class="tile">
+          <div class="tile-label">{{ t('dashboard.onlineNow') }}</div>
+          <div class="tile-value">{{ dash?.activeUserCount ?? 0 }}</div>
+          <div class="tile-sub">{{ t('dashboard.onlineHint') }}</div>
+        </div>
       </n-gi>
       <n-gi span="5 m:1">
         <div class="tile"><div class="tile-label">{{ t('dashboard.download') }}</div><div class="tile-value">{{ fmtBytes(traffic.down) }}</div></div>
@@ -118,10 +122,6 @@ onUnmounted(() => window.clearInterval(timer))
       </n-gi>
     </n-grid>
 
-    <n-card :title="t('dashboard.activeSessions')">
-      <n-data-table :columns="sessionColumns" :data="sessions" :row-key="(s: SessionInfo) => s.id" size="small" />
-    </n-card>
-
     <n-card title="mita">
       <template #header-extra>
         <n-button size="small" type="warning" secondary @click="restartMita">{{ t('dashboard.restartMita') }}</n-button>
@@ -129,6 +129,12 @@ onUnmounted(() => window.clearInterval(timer))
       <n-collapse @item-header-click="loadLogs">
         <n-collapse-item :title="t('dashboard.logs')" name="logs">
           <n-code :code="mitaLogs.join('\n') || t('dashboard.empty')" language="text" word-wrap />
+        </n-collapse-item>
+        <n-collapse-item :title="t('dashboard.rawConnections', { n: sessions.length })" name="sessions">
+          <n-alert type="default" :show-icon="false" style="margin-bottom: 10px">
+            {{ t('dashboard.rawConnectionsNote') }}
+          </n-alert>
+          <n-data-table :columns="sessionColumns" :data="sessions" :row-key="(s: SessionInfo) => s.id" size="small" />
         </n-collapse-item>
         <n-collapse-item :title="t('dashboard.rawMetrics')" name="metrics">
           <n-code :code="JSON.stringify(dash?.metrics ?? {}, null, 2)" language="json" word-wrap />

@@ -46,6 +46,8 @@ type dashboardResponse struct {
 	MitaUptime     int64           `json:"mitaUptimeSeconds"`
 	SessionCount   int             `json:"sessionCount"`
 	UserCount      int             `json:"userCount"`
+	// ActiveUserCount is how many users transferred data within onlineWindow.
+	ActiveUserCount int `json:"activeUserCount"`
 	Metrics        json.RawMessage `json:"metrics"`
 	InsecureAccess bool            `json:"insecureAccess"`
 	// Warnings are hardening hints shown at the top of the dashboard.
@@ -101,6 +103,12 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	if users, err := s.Mita.Users(ctx); err == nil {
 		resp.UserCount = len(users.GetItems())
+		cutoff := time.Now().Add(-onlineWindow).UnixMilli()
+		for _, item := range users.GetItems() {
+			if lastActiveMillis(item) >= cutoff {
+				resp.ActiveUserCount++
+			}
+		}
 	}
 	if s.Sup != nil {
 		restarts, startedAt := s.Sup.Stats()

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { h, ref, computed, onMounted } from 'vue'
+import { h, ref, computed, onMounted, onUnmounted } from 'vue'
 import {
   NButton, NCard, NDataTable, NDrawer, NDrawerContent, NForm, NFormItem, NInput,
   NInputNumber, NSpace, NSwitch, NTag, NPopconfirm, useMessage,
@@ -15,6 +15,27 @@ const message = useMessage()
 const { t } = useI18n()
 const users = ref<UserInfo[]>([])
 const loading = ref(false)
+// Ticks every few seconds so relative "last active" labels and the online
+// badge stay fresh between polls.
+const now = ref(Date.now())
+let poll: number | undefined
+let clock: number | undefined
+
+// A user counts as online when they moved data within the last 5 minutes
+// (mita can't attribute live sessions to users, so activity is inferred from
+// per-user traffic counters).
+const ONLINE_WINDOW_MS = 5 * 60 * 1000
+
+function relativeActive(ms: number): string {
+  if (!ms) return t('users.neverActive')
+  const diff = Math.max(0, now.value - ms)
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return t('users.momentsAgo')
+  if (mins < 60) return t('users.minutesAgo', { n: mins })
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return t('users.hoursAgo', { n: hours })
+  return t('users.daysAgo', { n: Math.floor(hours / 24) })
+}
 
 const drawerOpen = ref(false)
 const editingName = ref<string | null>(null) // null = create mode
@@ -45,6 +66,18 @@ function trafficOf(u: UserInfo): string {
 
 const columns = computed<DataTableColumns<UserInfo>>(() => [
   { title: t('users.name'), key: 'name' },
+  {
+    title: t('users.colStatus'),
+    key: 'status',
+    render: (u) => {
+      const online = u.lastActiveUnixMs > 0 && now.value - u.lastActiveUnixMs < ONLINE_WINDOW_MS
+      return h(
+        NTag,
+        { type: online ? 'success' : 'default', size: 'small', round: true },
+        { default: () => (online ? t('users.online') : relativeActive(u.lastActiveUnixMs)) },
+      )
+    },
+  },
   {
     title: t('users.colQuotas'),
     key: 'quotas',
@@ -84,14 +117,16 @@ const columns = computed<DataTableColumns<UserInfo>>(() => [
   },
 ])
 
-async function load() {
-  loading.value = true
+async function load(silent = false) {
+  if (!silent) loading.value = true
   try {
     users.value = await api.get<UserInfo[]>('/api/users')
+    now.value = Date.now()
   } catch (e) {
-    message.error(e instanceof ApiError ? e.message : t('users.loadFailed'))
+    // Background polls fail quietly; only the explicit load surfaces errors.
+    if (!silent) message.error(e instanceof ApiError ? e.message : t('users.loadFailed'))
   } finally {
-    loading.value = false
+    if (!silent) loading.value = false
   }
 }
 
@@ -144,7 +179,19 @@ async function removeUser(name: string) {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  // Refresh the list (and thus activity) periodically, and tick a clock so
+  // relative labels advance without a fetch. Skip polling while a hidden tab.
+  poll = window.setInterval(() => {
+    if (!document.hidden && !drawerOpen.value) load(true)
+  }, 10000)
+  clock = window.setInterval(() => (now.value = Date.now()), 5000)
+})
+onUnmounted(() => {
+  window.clearInterval(poll)
+  window.clearInterval(clock)
+})
 </script>
 
 <template>

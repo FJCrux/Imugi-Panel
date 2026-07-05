@@ -68,6 +68,7 @@ export interface UserInfo {
   allowPrivateIP: boolean
   hasSecret: boolean
   metrics: Record<string, number>
+  lastActiveUnixMs: number
 }
 
 export interface PortBinding {
@@ -90,6 +91,7 @@ export interface Dashboard {
   mitaUptimeSeconds: number
   sessionCount: number
   userCount: number
+  activeUserCount: number
   metrics: Record<string, Record<string, number>>
   insecureAccess: boolean
   warnings: string[]
