@@ -22,3 +22,5 @@ install and configuration.
 - [Sharing client configs](sharing-configs.md) - hand out connection links and
   QR codes.
 - [Metrics](metrics.md) - export to OpenObserve or Prometheus.
+- [Backup & restore](backup-restore.md) - portable snapshots; move the panel to
+  another server.

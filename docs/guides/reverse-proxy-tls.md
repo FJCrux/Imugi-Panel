@@ -8,7 +8,7 @@ on the panel container — they don't speak HTTP and never go through nginx.
 
 Use the ready-made compose file that runs the panel and nginx on one Docker
 network. The panel's HTTP port is **not published to the host at all** — nginx
-reaches it by service name (`http://mieru-web-ui:8686`) and is the only web
+reaches it by service name (`http://imugi-panel:8686`) and is the only web
 entry point; the panel itself never listens on 443:
 
 ```sh
@@ -33,7 +33,7 @@ shared network instead:
 ```yaml
 # in this project's docker-compose.yml, add:
 services:
-  mieru-web-ui:
+  imugi-panel:
     networks: [default, proxy]
 networks:
   proxy:
@@ -41,9 +41,9 @@ networks:
     name: nginx_default   # the network your nginx is attached to
 ```
 
-Then point the proxy at `http://mieru-web-ui:8686` (compose service DNS works
+Then point the proxy at `http://imugi-panel:8686` (compose service DNS works
 across a shared network). For Nginx Proxy Manager: forward hostname
-`mieru-web-ui`, port `8686`, scheme `http`.
+`imugi-panel`, port `8686`, scheme `http`.
 
 Common trap: `proxy_pass http://127.0.0.1:8686` from inside an nginx
 container points at the *nginx container itself*, not the host — that's why

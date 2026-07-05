@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { NCard, NForm, NFormItem, NInput, NButton, NSpace, NAlert, useMessage, useDialog } from 'naive-ui'
+import { NCard, NForm, NFormItem, NInput, NButton, NSpace, NAlert, NUpload, NText, useMessage, useDialog } from 'naive-ui'
+import type { UploadFileInfo } from 'naive-ui'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api, ApiError } from '../api/client'
+import { BASE } from '../base'
 import type { Settings } from '../api/client'
 import HelpLabel from '../components/HelpLabel.vue'
 
@@ -11,6 +13,76 @@ const message = useMessage()
 const dialog = useDialog()
 const router = useRouter()
 const { t } = useI18n()
+
+const backupPass = ref('')
+const restorePass = ref('')
+const restoreFile = ref<File | null>(null)
+const busy = ref(false)
+
+async function downloadBackup() {
+  busy.value = true
+  try {
+    const q = backupPass.value ? `?passphrase=${encodeURIComponent(backupPass.value)}` : ''
+    const res = await fetch(`${BASE}/api/backup${q}`, {
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+    if (!res.ok) throw new Error(await res.text())
+    const blob = await res.blob()
+    const cd = res.headers.get('Content-Disposition') || ''
+    const name = /filename="?([^"]+)"?/.exec(cd)?.[1] || 'imugi-panel-backup.tar.gz'
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = name
+    a.click()
+    URL.revokeObjectURL(a.href)
+    backupPass.value = ''
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : t('backup.downloadFailed'))
+  } finally {
+    busy.value = false
+  }
+}
+
+function onRestoreFile(options: { fileList: UploadFileInfo[] }) {
+  restoreFile.value = options.fileList[0]?.file ?? null
+}
+
+function confirmRestore() {
+  if (!restoreFile.value) {
+    message.error(t('backup.pickFile'))
+    return
+  }
+  dialog.warning({
+    title: t('backup.restoreTitle'),
+    content: t('backup.restoreConfirm'),
+    positiveText: t('backup.restore'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: doRestore,
+  })
+}
+
+async function doRestore() {
+  busy.value = true
+  try {
+    const fd = new FormData()
+    fd.append('archive', restoreFile.value as File)
+    if (restorePass.value) fd.append('passphrase', restorePass.value)
+    const res = await fetch(`${BASE}/api/restore`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: fd,
+    })
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'restore failed')
+    message.info(t('backup.restoring'))
+    setTimeout(() => window.location.reload(), 6000)
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : t('backup.restoreFailed'))
+  } finally {
+    busy.value = false
+  }
+}
 
 const publicHost = ref('')
 const panelUrl = ref('')
@@ -146,6 +218,48 @@ onMounted(load)
       </n-form>
     </n-card>
 
+    <n-card :title="t('backup.title')">
+      <n-alert type="info" :show-icon="false" style="margin-bottom: 14px">
+        {{ t('backup.intro') }}
+      </n-alert>
+      <n-form>
+        <n-form-item>
+          <template #label>
+            <HelpLabel :label="t('backup.passphrase')" :help="t('backup.passphraseHelp')" />
+          </template>
+          <n-input
+            v-model:value="backupPass"
+            type="password"
+            show-password-on="click"
+            :placeholder="t('backup.passphraseOptional')"
+            style="max-width: 380px"
+          />
+        </n-form-item>
+        <n-button type="primary" :loading="busy" @click="downloadBackup">{{ t('backup.download') }}</n-button>
+      </n-form>
+
+      <div class="restore">
+        <n-text depth="3" style="font-size: 13px">{{ t('backup.restoreHeading') }}</n-text>
+        <n-form style="margin-top: 10px">
+          <n-form-item :label="t('backup.file')">
+            <n-upload :max="1" :default-upload="false" @change="onRestoreFile">
+              <n-button>{{ t('backup.chooseFile') }}</n-button>
+            </n-upload>
+          </n-form-item>
+          <n-form-item :label="t('backup.restorePassphrase')">
+            <n-input
+              v-model:value="restorePass"
+              type="password"
+              show-password-on="click"
+              :placeholder="t('backup.passphraseIfEncrypted')"
+              style="max-width: 380px"
+            />
+          </n-form-item>
+          <n-button type="warning" secondary :loading="busy" @click="confirmRestore">{{ t('backup.restore') }}</n-button>
+        </n-form>
+      </div>
+    </n-card>
+
     <n-card :title="t('settings.adminTitle')">
       <n-form style="max-width: 380px">
         <n-form-item :label="t('settings.currentPassword')">
@@ -169,5 +283,10 @@ onMounted(load)
   font-size: 12px;
   opacity: 0.6;
   margin-top: 12px;
+}
+.restore {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--n-border-color, #26262c);
 }
 </style>

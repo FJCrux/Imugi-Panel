@@ -3,8 +3,8 @@
 #
 # Merges on top of docker-compose.yml, keeping its ports, env, and volumes.
 services:
-  mieru-web-ui:
-    image: mieru-web-ui:dev
+  imugi-panel:
+    image: imugi-panel:dev
     pull_policy: build
     build:
       context: .

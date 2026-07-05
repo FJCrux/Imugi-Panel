@@ -7,9 +7,9 @@
 # Configure via .env (copy from .env.example). docker compose loads it
 # automatically for the ${VAR} interpolation below.
 services:
-  mieru-web-ui:
-    image: ghcr.io/fjcrux/mieru-web-ui:${MIERU_WEB_UI_TAG:-latest}
-    container_name: mieru-web-ui
+  imugi-panel:
+    image: ghcr.io/fjcrux/imugi-panel:${IMUGI_PANEL_TAG:-latest}
+    container_name: imugi-panel
     restart: unless-stopped
     # Bridge networking: the panel and the proxy ports are published explicitly.
     ports:

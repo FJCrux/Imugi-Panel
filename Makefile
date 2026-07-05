@@ -39,7 +39,7 @@ test:
 
 # Build the production image directly (used by CI is the compose/publish path).
 docker: check-version
-	docker build -f docker/Dockerfile --build-arg MITA_VERSION=$(MITA_VERSION) -t mieru-web-ui .
+	docker build -f docker/Dockerfile --build-arg MITA_VERSION=$(MITA_VERSION) -t imugi-panel .
 
 # Fail if the pinned mieru version drifts between go.mod, the Dockerfiles, and
 # .env.example. Run in CI; fix mismatches with scripts/update-mieru.sh.

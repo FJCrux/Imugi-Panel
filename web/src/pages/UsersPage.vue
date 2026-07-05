@@ -2,10 +2,10 @@
 import { h, ref, computed, onMounted, onUnmounted } from 'vue'
 import {
   NButton, NCard, NDataTable, NDrawer, NDrawerContent, NForm, NFormItem, NInput,
-  NInputNumber, NSpace, NSwitch, NTag, NPopconfirm, NIcon, useMessage,
+  NInputGroup, NInputNumber, NSpace, NSwitch, NTag, NPopconfirm, NIcon, useMessage,
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
-import { PeopleOutline } from '@vicons/ionicons5'
+import { PeopleOutline, RefreshOutline } from '@vicons/ionicons5'
 import { useI18n } from 'vue-i18n'
 import { api, ApiError } from '../api/client'
 import type { UserInfo, Quota } from '../api/client'
@@ -150,9 +150,26 @@ async function load(silent = false) {
   }
 }
 
+// generatePassword returns a strong, URL-safe random password (no ambiguous
+// characters), built from the crypto RNG.
+function generatePassword(len = 20): string {
+  const alphabet = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  const bytes = new Uint32Array(len)
+  crypto.getRandomValues(bytes)
+  let out = ''
+  for (let i = 0; i < len; i++) out += alphabet[bytes[i] % alphabet.length]
+  return out
+}
+
+function regeneratePassword() {
+  form.value.password = generatePassword()
+}
+
 function openCreate() {
   editingName.value = null
-  form.value = { name: '', password: '', allowPrivateIP: false }
+  // Pre-fill a strong random password so an admin can just create-and-share;
+  // the field stays editable and can be regenerated or typed over.
+  form.value = { name: '', password: generatePassword(), allowPrivateIP: false }
   quotas.value = []
   drawerOpen.value = true
 }
@@ -248,7 +265,16 @@ onUnmounted(() => {
               :help="t('users.passwordHelp')"
             />
           </template>
-          <n-input v-model:value="form.password" type="password" show-password-on="click" />
+          <n-input-group>
+            <n-input
+              v-model:value="form.password"
+              type="text"
+              :placeholder="editingName === null ? '' : t('users.passwordKeepPlaceholder')"
+            />
+            <n-button ghost :title="t('users.regenerate')" @click="regeneratePassword">
+              <template #icon><n-icon :component="RefreshOutline" /></template>
+            </n-button>
+          </n-input-group>
         </n-form-item>
         <n-form-item>
           <template #label>

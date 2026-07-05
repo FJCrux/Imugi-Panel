@@ -66,6 +66,10 @@ type Store interface {
 	// when the user is deleted or their password changes).
 	DeleteShareTokensForUser(username string) error
 
+	// Backup writes a consistent snapshot of the store to dstPath (which must
+	// not already exist). Used by the panel's backup export.
+	Backup(dstPath string) error
+
 	// Close releases the backend.
 	Close() error
 }

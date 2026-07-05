@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -47,6 +49,106 @@ func boolEnv(key string) bool {
 		return true
 	}
 	return false
+}
+
+// applyPendingRestore moves files staged by the restore endpoint into their
+// live locations, then clears the staging dir. It runs before the store is
+// opened so replacing the live panel.db is safe. A missing staging dir is a
+// no-op.
+func applyPendingRestore(staging, dbPath, geoDir, peersDir, mitaConfig string) error {
+	if _, err := os.Stat(staging); err != nil {
+		return nil
+	}
+	log.Print("restore: applying staged backup")
+	if err := replaceFile(filepath.Join(staging, "panel.db"), dbPath); err != nil {
+		return fmt.Errorf("restore panel.db: %w", err)
+	}
+	// Drop the old WAL/SHM sidecars so they don't fight the restored db.
+	_ = os.Remove(dbPath + "-wal")
+	_ = os.Remove(dbPath + "-shm")
+
+	if src := filepath.Join(staging, "mita", "server.conf.pb"); fileExists(src) {
+		if err := replaceFile(src, mitaConfig); err != nil {
+			return fmt.Errorf("restore mita config: %w", err)
+		}
+	}
+	if err := replaceDir(filepath.Join(staging, "geoip"), geoDir); err != nil {
+		return fmt.Errorf("restore geoip: %w", err)
+	}
+	if err := replaceDir(filepath.Join(staging, "peers"), peersDir); err != nil {
+		return fmt.Errorf("restore peers: %w", err)
+	}
+	if err := os.RemoveAll(staging); err != nil {
+		return err
+	}
+	log.Print("restore: applied successfully")
+	return nil
+}
+
+func fileExists(p string) bool { _, err := os.Stat(p); return err == nil }
+
+// replaceFile copies src over dst atomically (copy to a temp then rename),
+// which is safe even when src and dst are on different filesystems.
+func replaceFile(src, dst string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o700); err != nil {
+		return err
+	}
+	tmp := dst + ".restore-tmp"
+	if err := copyFile(src, tmp); err != nil {
+		return err
+	}
+	return os.Rename(tmp, dst)
+}
+
+// replaceDir replaces dst with the contents of src (a no-op if src is absent).
+func replaceDir(src, dst string) error {
+	if _, err := os.Stat(src); err != nil {
+		return nil
+	}
+	if err := os.RemoveAll(dst); err != nil {
+		return err
+	}
+	return copyTree(src, dst)
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		return err
+	}
+	return out.Close()
+}
+
+func copyTree(src, dst string) error {
+	if err := os.MkdirAll(dst, 0o700); err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		s, d := filepath.Join(src, e.Name()), filepath.Join(dst, e.Name())
+		if e.IsDir() {
+			if err := copyTree(s, d); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := copyFile(s, d); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // seedSetting stores value under key only if the key is currently unset and
@@ -142,7 +244,21 @@ func main() {
 	// present, or clients could forge these headers.
 	trustProxy := boolEnv("PANEL_TRUST_PROXY")
 
-	st, err := store.OpenSQLite(filepath.Join(dataDir, "panel.db"))
+	// Resolve the paths that make up the panel's state, shared by the store,
+	// geoip/chain init, and the backup/restore endpoints.
+	dbPath := filepath.Join(dataDir, "panel.db")
+	geoDir := envOr("GEOIP_DIR", filepath.Join(dataDir, "geoip"))
+	peersDir := filepath.Join(dataDir, "peers")
+	mitaConfigFile := envOr("MITA_CONFIG_FILE", "/etc/mita/server.conf.pb")
+	restoreStaging := filepath.Join(dataDir, ".restore")
+
+	// Apply a restore staged by the restore endpoint before opening anything,
+	// so swapping the live panel.db is safe.
+	if err := applyPendingRestore(restoreStaging, dbPath, geoDir, peersDir, mitaConfigFile); err != nil {
+		log.Printf("apply pending restore: %v", err)
+	}
+
+	st, err := store.OpenSQLite(dbPath)
 	if err != nil {
 		log.Fatalf("open store: %v", err)
 	}
@@ -177,8 +293,7 @@ func main() {
 	// ports-without-users state (heals deployments created by older versions).
 	if !*noSupervise {
 		spec := settingOr(st, "desired_ports", "")
-		cfgFile := envOr("MITA_CONFIG_FILE", "/etc/mita/server.conf.pb")
-		if healed, err := mitaclient.HealConfigFile(cfgFile, spec); err != nil {
+		if healed, err := mitaclient.HealConfigFile(mitaConfigFile, spec); err != nil {
 			log.Printf("heal mita config: %v", err)
 		} else if healed {
 			log.Print("healed mita config (removed ports without users)")
@@ -204,14 +319,13 @@ func main() {
 	}
 	defer mita.Close()
 
-	geoDir := envOr("GEOIP_DIR", filepath.Join(dataDir, "geoip"))
 	geo, err := geoip.New(geoDir)
 	if err != nil {
 		log.Fatalf("init geoip: %v", err)
 	}
 
 	mieruBinary := envOr("MIERU_BINARY", "/usr/local/bin/mieru")
-	peers, err := chain.New(mieruBinary, filepath.Join(dataDir, "peers"), st)
+	peers, err := chain.New(mieruBinary, peersDir, st)
 	if err != nil {
 		log.Fatalf("init chain: %v", err)
 	}
@@ -233,7 +347,8 @@ func main() {
 	}
 
 	a := auth.New(st, auth.DefaultSessionTTL, tlsCert != "")
-	srv := &api.Server{Mita: mita, Store: st, Auth: a, Geo: geo, Peers: peers, SharePath: sharePath, PortsManaged: proxyPorts != "", PanelPort: panelPort, TLSEnabled: tlsCert != "", TrustProxy: trustProxy, Version: version, Updates: api.NewUpdateChecker(!boolEnv("PANEL_DISABLE_UPDATE_CHECK"))}
+	srv := &api.Server{Mita: mita, Store: st, Auth: a, Geo: geo, Peers: peers, SharePath: sharePath, PortsManaged: proxyPorts != "", PanelPort: panelPort, TLSEnabled: tlsCert != "", TrustProxy: trustProxy, Version: version, Updates: api.NewUpdateChecker(!boolEnv("PANEL_DISABLE_UPDATE_CHECK")),
+		Backup: &api.BackupPaths{DBPath: dbPath, GeoDir: geoDir, PeersDir: peersDir, MitaConfig: mitaConfigFile, RestoreStaging: restoreStaging}}
 	srv.ActiveBasePath = basePath
 	srv.ActiveSharePath = sharePath
 	// Restart = graceful shutdown; a Docker restart policy brings the panel

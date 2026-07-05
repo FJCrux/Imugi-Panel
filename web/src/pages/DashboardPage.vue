@@ -152,20 +152,34 @@ onUnmounted(() => window.clearInterval(timer))
 
 <style scoped>
 .tile {
-  background: #1a1a1f;
-  border: 1px solid #26262c;
-  border-radius: 12px;
+  position: relative;
+  background: linear-gradient(160deg, #12211b, #0d1814);
+  border: 1px solid #1e2e28;
+  border-radius: 14px;
   padding: 16px 18px;
-  min-height: 92px;
+  min-height: 96px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   gap: 12px;
+  overflow: hidden;
+  transition: border-color 0.18s ease, transform 0.18s ease;
+}
+.tile::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(18, 201, 140, 0.35), transparent);
+}
+.tile:hover {
+  border-color: #2b453b;
+  transform: translateY(-1px);
 }
 .tile-label {
-  font-size: 12px;
+  font-size: 11.5px;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.7px;
   opacity: 0.5;
 }
 .tile-label-help {

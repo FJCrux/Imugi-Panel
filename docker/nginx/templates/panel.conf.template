@@ -23,7 +23,7 @@ server {
     # The panel already sends X-Robots-Tag and serves /robots.txt itself.
     location / {
         # Compose service name, resolved on nginx's docker network.
-        proxy_pass http://mieru-web-ui:${PANEL_PORT};
+        proxy_pass http://imugi-panel:${PANEL_PORT};
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host $host;

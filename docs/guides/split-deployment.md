@@ -11,8 +11,8 @@ at the remote daemon:
 
 ```yaml
 services:
-  mieru-web-ui:
-    image: ghcr.io/fjcrux/mieru-web-ui:latest
+  imugi-panel:
+    image: ghcr.io/fjcrux/imugi-panel:latest
     command: ["--no-supervise"]
     environment:
       MITA_RPC_TARGET: "tcp://10.8.0.2:9090"   # the mita host, over a private net

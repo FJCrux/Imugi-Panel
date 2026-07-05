@@ -1,11 +1,12 @@
-# Mieru Web UI
+# Imugi Panel
 
 [![CI](https://github.com/fjcrux/mieru-web-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/fjcrux/mieru-web-ui/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
-A web admin panel for the [mieru](https://github.com/enfein/mieru) proxy server
-(`mita`), in the spirit of 3x-ui for Xray. Manage users, ports, routing, and
-share links from the browser. English and Russian UI.
+**Imugi Panel** is a web admin panel for the
+[mieru](https://github.com/enfein/mieru) proxy server (`mita`), in the spirit of
+3x-ui for Xray. Manage users, ports, routing, and share links from the browser.
+English and Russian UI.
 
 Single Go binary with the Vue SPA embedded, shipped as one Docker image that
 bundles and supervises `mita`.
@@ -53,7 +54,7 @@ bundles and supervises `mita`.
 git clone https://github.com/fjcrux/mieru-web-ui
 cd mieru-web-ui
 cp .env.example .env        # edit as needed
-docker compose up -d        # pulls ghcr.io/fjcrux/mieru-web-ui:latest
+docker compose up -d        # pulls ghcr.io/fjcrux/imugi-panel:latest
 docker compose logs | grep -A4 "Panel admin"   # generated password on first run
 ```
 
@@ -132,7 +133,7 @@ make test && make docker          # verify and rebuild
 ## Releases
 
 Pushing a `vX.Y.Z` tag builds and publishes the image to
-`ghcr.io/fjcrux/mieru-web-ui` (`X.Y.Z`, `X.Y`, `latest`) and creates a GitHub
+`ghcr.io/fjcrux/imugi-panel` (`X.Y.Z`, `X.Y`, `latest`) and creates a GitHub
 Release. Nothing is published from branch pushes.
 
 ## Security
@@ -147,4 +148,4 @@ See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## License
 
-GPL-3.0 - mieru-web-ui imports the GPL-3.0 `mieru` module. See [LICENSE](LICENSE).
+GPL-3.0 - Imugi Panel imports the GPL-3.0 `mieru` module. See [LICENSE](LICENSE).

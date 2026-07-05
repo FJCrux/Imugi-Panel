@@ -48,6 +48,17 @@ func OpenSQLite(path string) (Store, error) {
 
 func (s *sqliteStore) Close() error { return s.db.Close() }
 
+// Backup writes a consistent snapshot to dstPath. VACUUM INTO produces a clean
+// copy that folds in the WAL, so the snapshot is transactionally consistent
+// even while the panel keeps running.
+func (s *sqliteStore) Backup(dstPath string) error {
+	if _, err := os.Stat(dstPath); err == nil {
+		return fmt.Errorf("backup destination already exists: %s", dstPath)
+	}
+	_, err := s.db.Exec("VACUUM INTO ?", dstPath)
+	return err
+}
+
 func migrate(db *sql.DB) error {
 	_, err := db.Exec(`
 CREATE TABLE IF NOT EXISTS admin (

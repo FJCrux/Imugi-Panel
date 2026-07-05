@@ -1,1 +1,0 @@
-import{Tn as e,yt as t}from"./router-BIO1-tYH.js";import{p as n}from"./index-C_G8VDoQ.js";function r(){let r=e(n,null);return r===null&&t(`use-dialog`,`No outer <n-dialog-provider /> founded.`),r}export{r as t};

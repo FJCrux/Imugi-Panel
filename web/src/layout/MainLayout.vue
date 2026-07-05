@@ -17,6 +17,7 @@ import { api } from '../api/client'
 import type { Dashboard, VersionInfo } from '../api/client'
 import { LOCALES, setLocale } from '../i18n'
 import type { LocaleCode } from '../i18n'
+import ImugiMark from '../components/ImugiMark.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -115,15 +116,16 @@ async function onUser(key: string) {
       v-if="!isMobile"
       bordered
       :collapsed-width="64"
-      :width="220"
+      :width="222"
       collapse-mode="width"
       show-trigger="bar"
+      class="sider"
     >
       <div class="brand">
-        <span class="dot" />
-        <span class="name">Mieru Web UI</span>
+        <ImugiMark :size="26" glow />
+        <span class="name">Imugi Panel</span>
       </div>
-      <n-menu :value="route.path" :options="menuOptions" :indent="20" />
+      <n-menu :value="route.path" :options="menuOptions" :indent="20" class="nav" />
     </n-layout-sider>
 
     <n-layout>
@@ -173,8 +175,8 @@ async function onUser(key: string) {
     <n-drawer v-model:show="drawerOpen" :width="240" placement="left">
       <n-drawer-content :native-scrollbar="false" body-content-style="padding: 0">
         <div class="brand">
-          <span class="dot" />
-          <span class="name">Mieru Web UI</span>
+          <ImugiMark :size="26" glow />
+          <span class="name">Imugi Panel</span>
         </div>
         <n-menu :value="route.path" :options="menuOptions" :indent="20" />
       </n-drawer-content>
@@ -183,24 +185,34 @@ async function onUser(key: string) {
 </template>
 
 <style scoped>
+/* Sidebar: deep jade gradient with a faint scale texture, so it reads as the
+   serpent's flank rather than a flat panel. */
+.sider {
+  background:
+    linear-gradient(180deg, rgba(18, 40, 32, 0.55), rgba(9, 17, 14, 0.2)),
+    radial-gradient(14px 14px at 7px 7px, rgba(18, 201, 140, 0.05) 40%, transparent 42%),
+    #0b1512;
+  background-size: auto, 14px 14px, auto;
+}
 .brand {
-  height: 56px;
+  height: 60px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
   padding: 0 20px;
-  font-weight: 700;
-  font-size: 16px;
-  letter-spacing: 0.3px;
   white-space: nowrap;
 }
-.brand .dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #63e2b7;
-  box-shadow: 0 0 10px #63e2b7aa;
-  flex-shrink: 0;
+.brand .name {
+  font-weight: 750;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+  background: linear-gradient(92deg, #eafff6, #74e9c1);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.nav {
+  padding: 4px 8px;
 }
 .update-link {
   display: inline-flex;
@@ -212,6 +224,7 @@ async function onUser(key: string) {
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
+  backdrop-filter: blur(10px);
 }
 .content {
   overflow: auto;

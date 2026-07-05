@@ -7,7 +7,7 @@
 # pulls never conflict with your local networking/port choices.
 # Everything below is optional; keep only the sections you need.
 services:
-  mieru-web-ui:
+  imugi-panel:
     # No-op (same as base) so the file stays valid while everything below is
     # commented out.
     restart: unless-stopped
@@ -19,7 +19,7 @@ services:
     #   - "8443:8686"
 
     # --- join an existing reverse-proxy network (dockerized nginx/NPM/traefik) ---
-    # Let the proxy reach the panel as http://mieru-web-ui:8686 and don't
+    # Let the proxy reach the panel as http://imugi-panel:8686 and don't
     # publish the panel port at all (set PANEL_BIND_IP=127.0.0.1 in .env).
     # networks:
     #   - default

@@ -13,9 +13,9 @@
 # After that, the certbot service renews via webroot and nginx reloads itself
 # every 6h to pick up rotated certificates.
 services:
-  mieru-web-ui:
-    image: ghcr.io/fjcrux/mieru-web-ui:${MIERU_WEB_UI_TAG:-latest}
-    container_name: mieru-web-ui
+  imugi-panel:
+    image: ghcr.io/fjcrux/imugi-panel:${IMUGI_PANEL_TAG:-latest}
+    container_name: imugi-panel
     restart: unless-stopped
     ports:
       # Only the mieru proxy ports are published; nginx does not touch them
@@ -43,7 +43,7 @@ services:
     container_name: mieru-nginx
     restart: unless-stopped
     depends_on:
-      - mieru-web-ui
+      - imugi-panel
     ports:
       - "80:80"
       - "443:443"

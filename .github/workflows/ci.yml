@@ -27,14 +27,14 @@ jobs:
       - name: Check mieru version pins are in sync
         run: make check-version
 
+      - name: Build frontend
+        run: cd web && npm ci && npm run build
+
       - name: Go vet
         run: go vet ./...
 
       - name: Go test
         run: go test ./...
-
-      - name: Build frontend
-        run: cd web && npm ci && npm run build
 
       - name: Build binary (verifies go:embed against fresh SPA)
         run: go build ./...
@@ -61,7 +61,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/fjcrux/mieru-web-ui
+          images: ghcr.io/fjcrux/imugi-panel
           tags: |
             type=raw,value=latest
             type=semver,pattern={{version}}
@@ -126,7 +126,7 @@ jobs:
             ## Docker (recommended)
 
             ```sh
-            docker pull ghcr.io/fjcrux/mieru-web-ui:${{ github.ref_name }}
+            docker pull ghcr.io/fjcrux/imugi-panel:${{ github.ref_name }}
             ```
 
             Or pin the minor / use `latest`. See the
