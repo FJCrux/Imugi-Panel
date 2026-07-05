@@ -155,7 +155,7 @@ func parseSpecToBindings(spec string) ([]*pb.PortBinding, error) {
 			b.PortRange = proto.String(tok)
 		} else {
 			p, err := strconv.Atoi(tok)
-			if err != nil || validPort(int32(p)) != nil {
+			if err != nil || p < minPort || p > maxPort {
 				return nil, fmt.Errorf("invalid port %q", tok)
 			}
 			b.Port = proto.Int32(int32(p))
@@ -168,9 +168,16 @@ func parseSpecToBindings(spec string) ([]*pb.PortBinding, error) {
 	return out, nil
 }
 
+// Port bounds shared by the parsers below. Checking the parsed int against
+// these before narrowing to int32 keeps the conversions provably in range.
+const (
+	minPort = 1025
+	maxPort = 65535
+)
+
 func validPort(p int32) error {
-	if p < 1025 || p > 65535 {
-		return fmt.Errorf("port %d out of range (1025-65535)", p)
+	if p < minPort || p > maxPort {
+		return fmt.Errorf("port %d out of range (%d-%d)", p, minPort, maxPort)
 	}
 	return nil
 }
@@ -185,11 +192,8 @@ func parsePortRange(s string) (int32, int32, error) {
 	if err1 != nil || err2 != nil {
 		return 0, 0, fmt.Errorf("port range must look like 2012-2022")
 	}
-	if err := validPort(int32(lo)); err != nil {
-		return 0, 0, err
-	}
-	if err := validPort(int32(hi)); err != nil {
-		return 0, 0, err
+	if lo < minPort || lo > maxPort || hi < minPort || hi > maxPort {
+		return 0, 0, fmt.Errorf("port range must be within %d-%d", minPort, maxPort)
 	}
 	if lo >= hi {
 		return 0, 0, fmt.Errorf("port range start must be below end")

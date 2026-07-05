@@ -74,7 +74,7 @@ func parsePortSpec(spec string) ([]*pb.PortBinding, error) {
 			b.PortRange = proto.String(tok)
 		} else {
 			p, err := strconv.Atoi(tok)
-			if err != nil {
+			if err != nil || p < 1 || p > 65535 {
 				return nil, fmt.Errorf("invalid port %q", tok)
 			}
 			b.Port = proto.Int32(int32(p))

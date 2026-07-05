@@ -3,9 +3,13 @@
 package geoip
 
 import (
+	"context"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"google.golang.org/protobuf/encoding/protowire"
@@ -90,5 +94,51 @@ func TestMergeAcrossDatasets(t *testing.T) {
 	blocked, err := m.CIDRs("ru-blocked")
 	if err != nil || len(blocked) != 1 {
 		t.Fatalf("got %v %v", blocked, err)
+	}
+}
+
+func TestIsPublicIP(t *testing.T) {
+	cases := map[string]bool{
+		"8.8.8.8":         true,
+		"1.1.1.1":         true,
+		"2606:4700::1111": true,
+		"127.0.0.1":       false, // loopback
+		"10.0.0.5":        false, // RFC1918
+		"192.168.1.1":     false,
+		"172.16.0.1":      false,
+		"169.254.169.254": false, // cloud metadata (link-local)
+		"0.0.0.0":         false, // unspecified
+		"::1":             false, // IPv6 loopback
+		"fd00::1":         false, // IPv6 unique-local
+		"fe80::1":         false, // IPv6 link-local
+	}
+	for s, want := range cases {
+		if got := isPublicIP(net.ParseIP(s)); got != want {
+			t.Errorf("isPublicIP(%s) = %v, want %v", s, got, want)
+		}
+	}
+}
+
+func TestAddDatasetRejects(t *testing.T) {
+	m, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	// A server on loopback must be refused at dial time (SSRF guard).
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte("should never be reached"))
+	}))
+	defer srv.Close()
+	if err := m.AddDataset(ctx, "loop", srv.URL); err == nil {
+		t.Error("expected loopback URL to be blocked, got nil")
+	} else if !strings.Contains(err.Error(), "non-public") {
+		t.Errorf("expected non-public block, got: %v", err)
+	}
+
+	// Non-http schemes are rejected before any dial.
+	if err := m.AddDataset(ctx, "file", "file:///etc/passwd"); err == nil {
+		t.Error("expected file:// scheme to be rejected")
 	}
 }

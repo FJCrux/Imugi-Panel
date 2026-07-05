@@ -14,12 +14,15 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -38,7 +41,50 @@ func New(dir string) (*Manager, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("create geoip dir: %w", err)
 	}
-	return &Manager{dir: dir, client: &http.Client{Timeout: 90 * time.Second}}, nil
+	return &Manager{dir: dir, client: ssrfSafeClient()}, nil
+}
+
+// ssrfSafeClient is an HTTP client for fetching operator-supplied dataset URLs
+// that refuses to connect to non-public IP addresses. The check runs in the
+// dialer's Control hook, i.e. on the actual resolved IP just before the socket
+// is opened, so it also covers HTTP redirects and DNS-rebinding — a URL that
+// passes a naive up-front check but resolves/redirects to an internal address
+// is still blocked at dial time.
+func ssrfSafeClient() *http.Client {
+	dialer := &net.Dialer{Timeout: 30 * time.Second, Control: blockPrivateDial}
+	return &http.Client{
+		Timeout:   90 * time.Second,
+		Transport: &http.Transport{DialContext: dialer.DialContext},
+	}
+}
+
+// blockPrivateDial rejects a dial to any address that is not a routable public
+// IP, closing off SSRF to loopback, private ranges, and link-local (which
+// includes the cloud metadata endpoint 169.254.169.254).
+func blockPrivateDial(_, address string, _ syscall.RawConn) error {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return err
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return fmt.Errorf("cannot resolve dial address %q", address)
+	}
+	if !isPublicIP(ip) {
+		return fmt.Errorf("refusing to connect to non-public address %s", ip)
+	}
+	return nil
+}
+
+// isPublicIP reports whether ip is a globally routable unicast address.
+func isPublicIP(ip net.IP) bool {
+	// IsPrivate covers RFC1918 and IPv6 unique-local (fc00::/7);
+	// IsLinkLocalUnicast covers 169.254.0.0/16 (cloud metadata) and fe80::/10.
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() ||
+		ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() {
+		return false
+	}
+	return true
 }
 
 // Dataset is one .dat file on disk.
@@ -106,15 +152,22 @@ func (m *Manager) CIDRs(code string) ([]string, error) {
 
 // AddDataset downloads a geoip.dat from url and stores it as name.dat after
 // verifying it parses.
-func (m *Manager) AddDataset(ctx context.Context, name, url string) error {
+func (m *Manager) AddDataset(ctx context.Context, name, rawURL string) error {
 	name = sanitizeName(name)
 	if name == "" {
 		return fmt.Errorf("invalid dataset name")
 	}
-	if url == "" {
+	if rawURL == "" {
 		return fmt.Errorf("url is required")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid url: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("url must be http or https")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return err
 	}
