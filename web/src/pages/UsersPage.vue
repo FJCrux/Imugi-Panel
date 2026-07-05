@@ -2,9 +2,10 @@
 import { h, ref, computed, onMounted, onUnmounted } from 'vue'
 import {
   NButton, NCard, NDataTable, NDrawer, NDrawerContent, NForm, NFormItem, NInput,
-  NInputNumber, NSpace, NSwitch, NTag, NPopconfirm, useMessage,
+  NInputNumber, NSpace, NSwitch, NTag, NPopconfirm, NIcon, useMessage,
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
+import { PeopleOutline } from '@vicons/ionicons5'
 import { useI18n } from 'vue-i18n'
 import { api, ApiError } from '../api/client'
 import type { UserInfo, Quota } from '../api/client'
@@ -27,7 +28,6 @@ let clock: number | undefined
 const ONLINE_WINDOW_MS = 5 * 60 * 1000
 
 function relativeActive(ms: number): string {
-  if (!ms) return t('users.neverActive')
   const diff = Math.max(0, now.value - ms)
   const mins = Math.floor(diff / 60000)
   if (mins < 1) return t('users.momentsAgo')
@@ -35,6 +35,16 @@ function relativeActive(ms: number): string {
   const hours = Math.floor(mins / 60)
   if (hours < 24) return t('users.hoursAgo', { n: hours })
   return t('users.daysAgo', { n: Math.floor(hours / 24) })
+}
+
+// Total bytes this user has ever transferred. mita keeps the cumulative
+// counter even after the timestamped history that drives "last active" has
+// rolled off, so traffic > 0 with no timestamp still means "used it before".
+function totalTraffic(u: UserInfo): number {
+  return Object.entries(u.metrics).reduce((sum, [k, v]) => {
+    const key = k.toLowerCase()
+    return key.includes('download') || key.includes('upload') ? sum + v : sum
+  }, 0)
 }
 
 const drawerOpen = ref(false)
@@ -71,10 +81,20 @@ const columns = computed<DataTableColumns<UserInfo>>(() => [
     key: 'status',
     render: (u) => {
       const online = u.lastActiveUnixMs > 0 && now.value - u.lastActiveUnixMs < ONLINE_WINDOW_MS
+      let label: string
+      if (online) {
+        label = t('users.online')
+      } else if (u.lastActiveUnixMs > 0) {
+        label = relativeActive(u.lastActiveUnixMs) // known last-seen time
+      } else if (totalTraffic(u) > 0) {
+        label = t('users.offline') // used it before, but no recent activity data
+      } else {
+        label = t('users.neverActive') // never transferred anything
+      }
       return h(
         NTag,
         { type: online ? 'success' : 'default', size: 'small', round: true },
-        { default: () => (online ? t('users.online') : relativeActive(u.lastActiveUnixMs)) },
+        { default: () => label },
       )
     },
   },
@@ -199,7 +219,17 @@ onUnmounted(() => {
     <template #header-extra>
       <n-button type="primary" @click="openCreate">{{ t('users.addUser') }}</n-button>
     </template>
-    <n-data-table :columns="columns" :data="users" :loading="loading" :row-key="(u: UserInfo) => u.name" />
+    <n-data-table :columns="columns" :data="users" :loading="loading" :row-key="(u: UserInfo) => u.name" :scroll-x="760">
+      <template #empty>
+        <div class="empty">
+          <n-icon :component="PeopleOutline" :size="30" class="empty-icon" />
+          <div class="empty-title">{{ t('users.emptyTitle') }}</div>
+          <div class="empty-sub">{{ t('users.emptySub') }}</div>
+          <n-button type="primary" size="small" @click="openCreate">{{ t('users.addUser') }}</n-button>
+        </div>
+      </template>
+    </n-data-table>
+    <p v-if="users.length" class="legend">{{ t('users.statusLegend') }}</p>
   </n-card>
 
   <n-drawer v-model:show="drawerOpen" :width="420">
@@ -256,3 +286,31 @@ onUnmounted(() => {
 
   <ShareModal v-if="shareUser" :username="shareUser" @close="shareUser = null" />
 </template>
+
+<style scoped>
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 12px;
+}
+.empty-icon {
+  opacity: 0.35;
+}
+.empty-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.empty-sub {
+  font-size: 13px;
+  opacity: 0.6;
+  margin-bottom: 6px;
+  text-align: center;
+}
+.legend {
+  margin: 12px 2px 0;
+  font-size: 12px;
+  opacity: 0.5;
+}
+</style>

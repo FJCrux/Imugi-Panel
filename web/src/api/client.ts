@@ -200,6 +200,14 @@ export interface AdvancedConfig {
   trafficPattern: TrafficPatternConfig
 }
 
+export interface VersionInfo {
+  current: string
+  latest?: string
+  updateAvailable: boolean
+  releaseUrl?: string
+  checked: boolean
+}
+
 export interface Settings {
   publicHost: string
   panelUrl: string

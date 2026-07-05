@@ -233,7 +233,7 @@ func main() {
 	}
 
 	a := auth.New(st, auth.DefaultSessionTTL, tlsCert != "")
-	srv := &api.Server{Mita: mita, Store: st, Auth: a, Geo: geo, Peers: peers, SharePath: sharePath, PortsManaged: proxyPorts != "", PanelPort: panelPort, TLSEnabled: tlsCert != "", TrustProxy: trustProxy}
+	srv := &api.Server{Mita: mita, Store: st, Auth: a, Geo: geo, Peers: peers, SharePath: sharePath, PortsManaged: proxyPorts != "", PanelPort: panelPort, TLSEnabled: tlsCert != "", TrustProxy: trustProxy, Version: version, Updates: api.NewUpdateChecker(!boolEnv("PANEL_DISABLE_UPDATE_CHECK"))}
 	srv.ActiveBasePath = basePath
 	srv.ActiveSharePath = sharePath
 	// Restart = graceful shutdown; a Docker restart policy brings the panel

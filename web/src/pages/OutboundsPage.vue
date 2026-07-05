@@ -175,7 +175,7 @@ onMounted(() => {
       <n-alert type="info" :show-icon="false" style="margin-bottom: 12px">
         {{ t('outbounds.proxiesAlert') }}
       </n-alert>
-      <n-data-table :columns="proxyColumns" :data="proxies" :row-key="(p: EgressProxy) => p.name" size="small" />
+      <n-data-table :columns="proxyColumns" :data="proxies" :row-key="(p: EgressProxy) => p.name" size="small" :scroll-x="520" />
     </n-card>
 
     <n-card :title="t('outbounds.geoTitle')">

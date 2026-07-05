@@ -48,6 +48,10 @@ type Server struct {
 	// silences the plain-HTTP warning). Only enable when such a proxy is
 	// actually present and reachable clients can't forge the header.
 	TrustProxy bool
+	// Version is the running panel version, shown in the UI.
+	Version string
+	// Updates checks GitHub for a newer release (nil disables the check).
+	Updates *updateChecker
 }
 
 // Routes returns the /api handler tree with auth applied.
@@ -55,6 +59,7 @@ func (s *Server) Routes() http.Handler {
 	authed := http.NewServeMux()
 	authed.HandleFunc("POST /api/logout", s.handleLogout)
 	authed.HandleFunc("GET /api/me", s.handleMe)
+	authed.HandleFunc("GET /api/version", s.handleVersion)
 
 	authed.HandleFunc("GET /api/dashboard", s.handleDashboard)
 	authed.HandleFunc("GET /api/sessions", s.handleSessions)

@@ -27,7 +27,8 @@
     "settings": "Settings"
   },
   "layout": {
-    "logout": "Log out"
+    "logout": "Log out",
+    "updateAvailable": "update {v}"
   },
   "login": {
     "subtitle": "Sign in to your panel",
@@ -43,7 +44,7 @@
     "users": "Users",
     "activeSessions": "Active sessions",
     "onlineNow": "Online now",
-    "onlineHint": "active in last 5 min",
+    "onlineHint": "Users that transferred data in the last 5 minutes. mita can't tie live sessions to users, so this is inferred from per-user traffic.",
     "rawConnections": "Raw connections ({n}) — debug",
     "rawConnectionsNote": "Low-level proxy connections reported by mita. These are TCP/UDP sockets and are not linked to a specific user — use the Users page to see who is online.",
     "download": "Downloaded",
@@ -79,7 +80,11 @@
     "addQuota": "Add quota",
     "colStatus": "Status",
     "online": "online",
+    "offline": "offline",
     "neverActive": "never",
+    "emptyTitle": "No users yet",
+    "emptySub": "Add a user to start the proxy and hand out a connection link.",
+    "statusLegend": "Status is inferred from per-user traffic: online = data in the last 5 min, offline = used before, never = no traffic yet.",
     "momentsAgo": "just now",
     "minutesAgo": "{n}m ago",
     "hoursAgo": "{n}h ago",

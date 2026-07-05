@@ -1,19 +1,20 @@
 <script setup lang="ts">
 import { h, ref, onMounted, onUnmounted, computed } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { watch } from 'vue'
 import {
   NLayout, NLayoutSider, NLayoutHeader, NLayoutContent, NMenu, NButton, NSpace,
-  NText, NIcon, NTag, NDropdown,
+  NText, NIcon, NTag, NDropdown, NDrawer, NDrawerContent,
 } from 'naive-ui'
 import type { MenuOption } from 'naive-ui'
 import {
   GridOutline, PeopleOutline, GitNetworkOutline, SwapHorizontalOutline,
   LinkOutline, OptionsOutline, SettingsOutline, PersonCircleOutline,
-  LogOutOutline, LanguageOutline,
+  LogOutOutline, LanguageOutline, MenuOutline,
 } from '@vicons/ionicons5'
 import { useI18n } from 'vue-i18n'
 import { api } from '../api/client'
-import type { Dashboard } from '../api/client'
+import type { Dashboard, VersionInfo } from '../api/client'
 import { LOCALES, setLocale } from '../i18n'
 import type { LocaleCode } from '../i18n'
 
@@ -23,7 +24,20 @@ const { t } = useI18n()
 const username = ref('')
 const status = ref('')
 const version = ref('')
+const panel = ref<VersionInfo | null>(null)
 let timer: number | undefined
+
+// Below this width the fixed sidebar is replaced by a hamburger + slide-out
+// drawer so the panel is usable on phones.
+const MOBILE_BREAKPOINT = 760
+const isMobile = ref(false)
+const drawerOpen = ref(false)
+function onResize() {
+  isMobile.value = window.innerWidth < MOBILE_BREAKPOINT
+}
+
+// Close the mobile menu after navigating.
+watch(() => route.path, () => (drawerOpen.value = false))
 
 function icon(c: unknown) {
   return () => h(NIcon, null, { default: () => h(c as never) })
@@ -70,8 +84,18 @@ onMounted(async () => {
   timer = window.setInterval(() => {
     if (!document.hidden) poll()
   }, 8000)
+  try {
+    panel.value = await api.get<VersionInfo>('/api/version')
+  } catch {
+    /* version display is best-effort */
+  }
+  onResize()
+  window.addEventListener('resize', onResize)
 })
-onUnmounted(() => window.clearInterval(timer))
+onUnmounted(() => {
+  window.clearInterval(timer)
+  window.removeEventListener('resize', onResize)
+})
 
 async function onUser(key: string) {
   if (key === 'logout') {
@@ -85,8 +109,16 @@ async function onUser(key: string) {
 </script>
 
 <template>
-  <n-layout position="absolute" has-sider>
-    <n-layout-sider bordered :collapsed-width="64" :width="220" collapse-mode="width" show-trigger="bar">
+  <n-layout position="absolute" :has-sider="!isMobile">
+    <!-- Desktop: fixed sidebar. Mobile: replaced by the drawer below. -->
+    <n-layout-sider
+      v-if="!isMobile"
+      bordered
+      :collapsed-width="64"
+      :width="220"
+      collapse-mode="width"
+      show-trigger="bar"
+    >
       <div class="brand">
         <span class="dot" />
         <span class="name">Mieru Web UI</span>
@@ -96,29 +128,57 @@ async function onUser(key: string) {
 
     <n-layout>
       <n-layout-header bordered class="header">
-        <n-space align="center" :size="10">
+        <n-space align="center" :size="isMobile ? 6 : 10" :wrap="false">
+          <n-button v-if="isMobile" quaternary circle @click="drawerOpen = true">
+            <template #icon><n-icon :component="MenuOutline" /></template>
+          </n-button>
           <n-tag :type="statusType" size="small" round>{{ status || '…' }}</n-tag>
-          <n-text v-if="version" depth="3" style="font-size: 12px">mita v{{ version }}</n-text>
+          <n-text v-if="version && !isMobile" depth="3" style="font-size: 12px">mita v{{ version }}</n-text>
+          <n-text v-if="panel && !isMobile" depth="3" style="font-size: 12px">
+            · panel {{ panel.current === 'dev' ? 'dev' : panel.current }}
+          </n-text>
+          <a
+            v-if="panel?.updateAvailable"
+            :href="panel.releaseUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="update-link"
+          >
+            <n-tag size="small" type="success" round :bordered="false">
+              {{ t('layout.updateAvailable', { v: panel.latest }) }}
+            </n-tag>
+          </a>
         </n-space>
-        <n-space align="center" :size="4">
+        <n-space align="center" :size="14" :wrap="false">
           <n-dropdown :options="localeMenu" @select="(k: string) => setLocale(k as LocaleCode)" trigger="click">
-            <n-button text>
+            <n-button text style="font-size: 18px">
               <template #icon><n-icon :component="LanguageOutline" /></template>
             </n-button>
           </n-dropdown>
           <n-dropdown :options="userMenu" @select="onUser" trigger="click">
-            <n-button text>
+            <n-button text :focusable="false">
               <template #icon><n-icon :component="PersonCircleOutline" /></template>
-              {{ username || 'admin' }}
+              <span v-if="!isMobile" style="margin-left: 4px">{{ username || 'admin' }}</span>
             </n-button>
           </n-dropdown>
         </n-space>
       </n-layout-header>
 
-      <n-layout-content class="content" content-style="padding: 24px; max-width: 1100px; margin: 0 auto;">
+      <n-layout-content class="content" :content-style="`padding: ${isMobile ? 16 : 24}px; max-width: 1100px; margin: 0 auto;`">
         <router-view />
       </n-layout-content>
     </n-layout>
+
+    <!-- Mobile navigation drawer -->
+    <n-drawer v-model:show="drawerOpen" :width="240" placement="left">
+      <n-drawer-content :native-scrollbar="false" body-content-style="padding: 0">
+        <div class="brand">
+          <span class="dot" />
+          <span class="name">Mieru Web UI</span>
+        </div>
+        <n-menu :value="route.path" :options="menuOptions" :indent="20" />
+      </n-drawer-content>
+    </n-drawer>
   </n-layout>
 </template>
 
@@ -141,6 +201,10 @@ async function onUser(key: string) {
   background: #63e2b7;
   box-shadow: 0 0 10px #63e2b7aa;
   flex-shrink: 0;
+}
+.update-link {
+  display: inline-flex;
+  text-decoration: none;
 }
 .header {
   height: 56px;

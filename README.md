@@ -19,6 +19,12 @@ bundles and supervises `mita`.
   <img src="docs/screenshots/share.png" width="49%" alt="Share links and QR" />
 </p>
 
+<p align="center">
+  <img src="docs/screenshots/mobile.png" width="30%" alt="Mobile layout" />
+</p>
+
+<p align="center"><sub>English &amp; Russian · responsive down to phones</sub></p>
+
 ## Features
 
 - **Users & quotas** - CRUD mieru users, traffic quotas, private-IP toggle.

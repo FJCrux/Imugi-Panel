@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { NCard, NGrid, NGi, NTag, NDataTable, NCollapse, NCollapseItem, NCode, NButton, NSpace, NAlert, useMessage } from 'naive-ui'
+import { NCard, NGrid, NGi, NTag, NTooltip, NDataTable, NCollapse, NCollapseItem, NCode, NButton, NSpace, NAlert, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { api, ApiError } from '../api/client'
@@ -100,8 +100,10 @@ onUnmounted(() => window.clearInterval(timer))
       <n-gi span="5 m:1">
         <div class="tile">
           <div class="tile-label">mita</div>
-          <n-tag :type="statusType" size="small" round>{{ dash?.mitaStatus ?? '…' }}</n-tag>
-          <div class="tile-sub">{{ t('dashboard.mitaSub', { version: dash?.mitaVersion || '-', uptime: fmtUptime(dash?.mitaUptimeSeconds ?? 0) }) }}</div>
+          <div class="tile-foot">
+            <n-tag :type="statusType" size="small" round>{{ dash?.mitaStatus ?? '…' }}</n-tag>
+            <span class="tile-up">{{ t('dashboard.mitaSub', { version: dash?.mitaVersion || '-', uptime: fmtUptime(dash?.mitaUptimeSeconds ?? 0) }) }}</span>
+          </div>
         </div>
       </n-gi>
       <n-gi span="5 m:1">
@@ -109,9 +111,13 @@ onUnmounted(() => window.clearInterval(timer))
       </n-gi>
       <n-gi span="5 m:1">
         <div class="tile">
-          <div class="tile-label">{{ t('dashboard.onlineNow') }}</div>
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <div class="tile-label tile-label-help">{{ t('dashboard.onlineNow') }}</div>
+            </template>
+            {{ t('dashboard.onlineHint') }}
+          </n-tooltip>
           <div class="tile-value">{{ dash?.activeUserCount ?? 0 }}</div>
-          <div class="tile-sub">{{ t('dashboard.onlineHint') }}</div>
         </div>
       </n-gi>
       <n-gi span="5 m:1">
@@ -134,7 +140,7 @@ onUnmounted(() => window.clearInterval(timer))
           <n-alert type="default" :show-icon="false" style="margin-bottom: 10px">
             {{ t('dashboard.rawConnectionsNote') }}
           </n-alert>
-          <n-data-table :columns="sessionColumns" :data="sessions" :row-key="(s: SessionInfo) => s.id" size="small" />
+          <n-data-table :columns="sessionColumns" :data="sessions" :row-key="(s: SessionInfo) => s.id" size="small" :scroll-x="640" />
         </n-collapse-item>
         <n-collapse-item :title="t('dashboard.rawMetrics')" name="metrics">
           <n-code :code="JSON.stringify(dash?.metrics ?? {}, null, 2)" language="json" word-wrap />
@@ -150,23 +156,50 @@ onUnmounted(() => window.clearInterval(timer))
   border: 1px solid #26262c;
   border-radius: 12px;
   padding: 16px 18px;
-  min-height: 84px;
+  min-height: 92px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
 }
 .tile-label {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.6px;
   opacity: 0.5;
-  margin-bottom: 8px;
+}
+.tile-label-help {
+  cursor: help;
+  border-bottom: 1px dotted rgba(255, 255, 255, 0.25);
+  align-self: flex-start;
 }
 .tile-value {
   font-size: 24px;
   font-weight: 650;
+  line-height: 1;
 }
-.tile-sub {
-  margin-top: 8px;
+/* Foot row keeps the mita status tile's value baseline aligned with the
+   number tiles. */
+.tile-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tile-up {
   font-size: 12px;
   opacity: 0.55;
+}
+/* Tighter tiles on phones so they don't waste vertical space. */
+@media (max-width: 760px) {
+  .tile {
+    min-height: 0;
+    padding: 14px 16px;
+    gap: 10px;
+  }
+  .tile-value {
+    font-size: 22px;
+  }
 }
 .warnlist {
   margin: 0;

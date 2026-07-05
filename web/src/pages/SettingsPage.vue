@@ -101,7 +101,7 @@ onMounted(load)
         {{ t('settings.serverIntro') }}
       </n-alert>
       <n-form>
-        <n-form-item>
+        <n-form-item style="margin-bottom: 14px">
           <template #label>
             <HelpLabel :label="t('settings.publicHost')" :help="t('settings.publicHostHelp')" />
           </template>

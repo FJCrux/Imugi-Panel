@@ -124,7 +124,7 @@ onMounted(load)
           <n-button type="primary" :loading="adding" @click="addPeer">{{ t('chain.connect') }}</n-button>
         </n-form-item>
       </n-form>
-      <n-data-table :columns="columns" :data="peers" :loading="loading" :row-key="(p: Peer) => p.name" size="small" />
+      <n-data-table :columns="columns" :data="peers" :loading="loading" :row-key="(p: Peer) => p.name" size="small" :scroll-x="520" />
     </n-card>
 
     <n-card :title="t('chain.asUpstreamTitle')">
