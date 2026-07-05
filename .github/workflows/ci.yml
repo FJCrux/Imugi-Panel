@@ -30,6 +30,13 @@ jobs:
       - name: Build frontend
         run: cd web && npm ci && npm run build
 
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "gofmt needed on:" && echo "$unformatted" && exit 1
+          fi
+
       - name: Go vet
         run: go vet ./...
 

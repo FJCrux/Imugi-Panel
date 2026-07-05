@@ -19,7 +19,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &req) {
 		return
 	}
-	token, err := s.Auth.Login(auth.RemoteIP(r), req.Username, req.Password)
+	token, err := s.Auth.Login(auth.RemoteIP(r, s.TrustProxy), req.Username, req.Password)
 	switch {
 	case errors.Is(err, auth.ErrRateLimited):
 		writeErr(w, http.StatusTooManyRequests, "too many login attempts, try again later")

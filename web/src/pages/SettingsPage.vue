@@ -22,10 +22,12 @@ const busy = ref(false)
 async function downloadBackup() {
   busy.value = true
   try {
-    const q = backupPass.value ? `?passphrase=${encodeURIComponent(backupPass.value)}` : ''
-    const res = await fetch(`${BASE}/api/backup${q}`, {
+    // Passphrase goes in the body: query strings end up in proxy logs.
+    const res = await fetch(`${BASE}/api/backup`, {
+      method: 'POST',
       credentials: 'same-origin',
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passphrase: backupPass.value }),
     })
     if (!res.ok) throw new Error(await res.text())
     const blob = await res.blob()

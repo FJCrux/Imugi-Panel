@@ -5,11 +5,11 @@ package mitaclient
 import (
 	"fmt"
 	"os"
-	"strconv"
-	"strings"
 
 	pb "github.com/enfein/mieru/v3/pkg/appctl/appctlpb"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/fjcrux/mieru-web-ui/internal/portspec"
 )
 
 // HealConfigFile fixes mita's on-disk config so it can start without
@@ -41,14 +41,16 @@ func HealConfigFile(path, spec string) (bool, error) {
 		if spec == "" {
 			return false, nil
 		}
-		parsed, err := parsePortSpec(spec)
+		// minPort 1: accept any port mita itself would run with, even ones the
+		// UI wouldn't allow entering.
+		parsed, err := portspec.Parse(spec, 1)
 		if err != nil {
 			return false, nil
 		}
 		want = parsed
 	}
 	// No users -> want stays nil (clear ports; this is the crashloop fix).
-	if samePorts(cfg.GetPortBindings(), want) {
+	if portspec.Same(cfg.GetPortBindings(), want) {
 		return false, nil
 	}
 	cfg.PortBindings = want
@@ -60,43 +62,4 @@ func HealConfigFile(path, spec string) (bool, error) {
 		return false, err
 	}
 	return true, os.WriteFile(path, nb, 0o660)
-}
-
-func parsePortSpec(spec string) ([]*pb.PortBinding, error) {
-	var out []*pb.PortBinding
-	for _, tok := range strings.Split(spec, ",") {
-		tok = strings.TrimSpace(tok)
-		if tok == "" {
-			continue
-		}
-		b := &pb.PortBinding{Protocol: pb.TransportProtocol_TCP.Enum()}
-		if strings.Contains(tok, "-") {
-			b.PortRange = proto.String(tok)
-		} else {
-			p, err := strconv.Atoi(tok)
-			if err != nil || p < 1 || p > 65535 {
-				return nil, fmt.Errorf("invalid port %q", tok)
-			}
-			b.Port = proto.Int32(int32(p))
-		}
-		out = append(out, b)
-	}
-	if len(out) == 0 {
-		return nil, fmt.Errorf("no ports")
-	}
-	return out, nil
-}
-
-func samePorts(a, b []*pb.PortBinding) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i].GetPort() != b[i].GetPort() ||
-			a[i].GetPortRange() != b[i].GetPortRange() ||
-			a[i].GetProtocol() != b[i].GetProtocol() {
-			return false
-		}
-	}
-	return true
 }

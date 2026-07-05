@@ -14,6 +14,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -37,10 +38,11 @@ const DefaultSessionTTL = 7 * 24 * time.Hour
 type Auth struct {
 	store      store.Store
 	sessionTTL time.Duration
-	secure     bool // set Secure flag on cookies (TLS enabled)
+	secure     bool // set Secure flag on cookies (TLS, own or at a trusted proxy)
 
-	mu       sync.Mutex
-	attempts map[string][]time.Time
+	mu        sync.Mutex
+	attempts  map[string][]time.Time
+	lastSweep time.Time
 }
 
 func New(st store.Store, sessionTTL time.Duration, secureCookies bool) *Auth {
@@ -184,6 +186,7 @@ func (a *Auth) allowAttempt(ip string) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	now := time.Now()
+	a.sweep(now)
 	recent := a.attempts[ip][:0]
 	for _, t := range a.attempts[ip] {
 		if now.Sub(t) < loginWindow {
@@ -204,10 +207,45 @@ func (a *Auth) clearAttempts(ip string) {
 	delete(a.attempts, ip)
 }
 
-// RemoteIP extracts the client IP from a request (no proxy headers -
-// the panel is expected to be accessed directly or the operator accepts
-// per-proxy-IP rate limiting).
-func RemoteIP(r *http.Request) string {
+// sweep drops buckets whose attempts have all expired, at most once per
+// loginWindow, so the map doesn't grow forever under rotating source IPs.
+// Caller must hold a.mu.
+func (a *Auth) sweep(now time.Time) {
+	if now.Sub(a.lastSweep) < loginWindow {
+		return
+	}
+	a.lastSweep = now
+	for ip, ts := range a.attempts {
+		live := false
+		for _, t := range ts {
+			if now.Sub(t) < loginWindow {
+				live = true
+				break
+			}
+		}
+		if !live {
+			delete(a.attempts, ip)
+		}
+	}
+}
+
+// RemoteIP extracts the client IP for rate limiting. With trustProxy the
+// reverse proxy's headers are honored (X-Real-IP, then the last hop of
+// X-Forwarded-For — the one appended by our own proxy, which the client
+// can't forge); otherwise only the socket address counts, so all requests
+// arriving through an untrusted proxy share one bucket.
+func RemoteIP(r *http.Request, trustProxy bool) string {
+	if trustProxy {
+		if ip := strings.TrimSpace(r.Header.Get("X-Real-IP")); ip != "" {
+			return ip
+		}
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			hops := strings.Split(xff, ",")
+			if ip := strings.TrimSpace(hops[len(hops)-1]); ip != "" {
+				return ip
+			}
+		}
+	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr

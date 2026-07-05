@@ -20,7 +20,12 @@ server {
     ssl_certificate     /etc/letsencrypt/live/${PANEL_DOMAIN}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/${PANEL_DOMAIN}/privkey.pem;
 
-    # The panel already sends X-Robots-Tag and serves /robots.txt itself.
+    # Restore uploads can be large (geoip datasets); the panel itself caps
+    # them at 512 MiB.
+    client_max_body_size 600m;
+
+    # The panel already sends X-Robots-Tag, security headers (incl. HSTS when
+    # PANEL_TRUST_PROXY is on) and serves /robots.txt itself.
     location / {
         # Compose service name, resolved on nginx's docker network.
         proxy_pass http://imugi-panel:${PANEL_PORT};
@@ -28,5 +33,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 }

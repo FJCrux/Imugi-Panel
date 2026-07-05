@@ -3,6 +3,7 @@
 package api
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"html/template"
 	"net/http"
@@ -11,6 +12,17 @@ import (
 
 	"github.com/fjcrux/mieru-web-ui/internal/sharelink"
 )
+
+// shareCopyScript is the only script on the share page; its CSP hash lets the
+// page keep a no-'unsafe-inline' script policy.
+const shareCopyScript = `document.getElementById('c').addEventListener('click',function(){navigator.clipboard.writeText(document.getElementById('l').value)})`
+
+var shareCSP = func() string {
+	sum := sha256.Sum256([]byte(shareCopyScript))
+	return "default-src 'none'; img-src data:; style-src 'unsafe-inline'; " +
+		"script-src 'sha256-" + base64.StdEncoding.EncodeToString(sum[:]) + "'; " +
+		"frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+}()
 
 var sharePageTmpl = template.Must(template.New("share").Parse(`<!doctype html>
 <html lang="en"><head>
@@ -34,9 +46,9 @@ button{margin-top:8px;background:#63e2b7;color:#08130f;border:0;border-radius:6p
 <h1>Connect: {{.User}}</h1>
 <img src="data:image/png;base64,{{.QR}}" alt="QR code">
 <textarea id="l" rows="3" readonly>{{.Link}}</textarea>
-<button onclick="navigator.clipboard.writeText(document.getElementById('l').value)">Copy link</button>
+<button id="c">Copy link</button>
 <p class="hint">Import this into your mieru client. Keep it private.</p>
-</div></body></html>`))
+</div><script>{{.CopyScript}}</script></body></html>`))
 
 func renderSharePage(w http.ResponseWriter, user string, links *sharelink.Links) {
 	link := ""
@@ -52,13 +64,18 @@ func renderSharePage(w http.ResponseWriter, user string, links *sharelink.Links)
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("X-Robots-Tag", "noindex")
+	// Replace the SPA policy from the global middleware with one tailored to
+	// this standalone page (inline styles, data: QR image, hashed script).
+	w.Header().Set("Content-Security-Policy", shareCSP)
 	_ = sharePageTmpl.Execute(w, struct {
-		User string
-		QR   string
-		Link string
+		User       string
+		QR         string
+		Link       string
+		CopyScript template.JS
 	}{
-		User: user,
-		QR:   base64.StdEncoding.EncodeToString(png),
-		Link: link,
+		User:       user,
+		QR:         base64.StdEncoding.EncodeToString(png),
+		Link:       link,
+		CopyScript: template.JS(shareCopyScript),
 	})
 }

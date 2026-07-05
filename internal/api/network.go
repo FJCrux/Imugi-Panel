@@ -10,6 +10,8 @@ import (
 
 	pb "github.com/enfein/mieru/v3/pkg/appctl/appctlpb"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/fjcrux/mieru-web-ui/internal/portspec"
 )
 
 type portBinding struct {
@@ -37,7 +39,7 @@ func (s *Server) handleGetNetwork(w http.ResponseWriter, r *http.Request) {
 	// Ports come from the panel's desired_ports (shown even with no users, and
 	// safe when mita is momentarily unreachable). MTU/logging come from mita.
 	if spec, _ := s.Store.Setting("desired_ports"); spec != "" {
-		if bindings, err := parseSpecToBindings(spec); err == nil {
+		if bindings, err := portspec.Parse(spec, portspec.MinUIPort); err == nil {
 			for _, b := range bindings {
 				out.PortBindings = append(out.PortBindings, portBinding{
 					Port:      b.GetPort(),
@@ -117,7 +119,7 @@ func bindingsToSpec(in []portBinding) (string, error) {
 			return "", fmt.Errorf("only TCP port bindings are supported here")
 		}
 		if b.PortRange != "" {
-			if _, err := parseSpecToBindings(b.PortRange); err != nil {
+			if _, _, err := portspec.ParseRange(b.PortRange, portspec.MinUIPort); err != nil {
 				return "", err
 			}
 			toks = append(toks, b.PortRange)
@@ -129,74 +131,15 @@ func bindingsToSpec(in []portBinding) (string, error) {
 		}
 	}
 	spec := strings.Join(toks, ",")
-	if _, err := parseSpecToBindings(spec); err != nil {
+	if _, err := portspec.Parse(spec, portspec.MinUIPort); err != nil {
 		return "", err
 	}
 	return spec, nil
 }
 
-// parseSpecToBindings parses "2012", "2012-2022", or "2012,2020,2027" into TCP
-// port bindings.
-func parseSpecToBindings(spec string) ([]*pb.PortBinding, error) {
-	var out []*pb.PortBinding
-	for _, tok := range strings.Split(spec, ",") {
-		tok = strings.TrimSpace(tok)
-		if tok == "" {
-			continue
-		}
-		b := &pb.PortBinding{Protocol: pb.TransportProtocol_TCP.Enum()}
-		if strings.Contains(tok, "-") {
-			lo, hi, err := parsePortRange(tok)
-			if err != nil {
-				return nil, err
-			}
-			_ = lo
-			_ = hi
-			b.PortRange = proto.String(tok)
-		} else {
-			p, err := strconv.Atoi(tok)
-			if err != nil || p < minPort || p > maxPort {
-				return nil, fmt.Errorf("invalid port %q", tok)
-			}
-			b.Port = proto.Int32(int32(p))
-		}
-		out = append(out, b)
-	}
-	if len(out) == 0 {
-		return nil, fmt.Errorf("no ports in %q", spec)
-	}
-	return out, nil
-}
-
-// Port bounds shared by the parsers below. Checking the parsed int against
-// these before narrowing to int32 keeps the conversions provably in range.
-const (
-	minPort = 1025
-	maxPort = 65535
-)
-
 func validPort(p int32) error {
-	if p < minPort || p > maxPort {
-		return fmt.Errorf("port %d out of range (%d-%d)", p, minPort, maxPort)
+	if p < portspec.MinUIPort || p > portspec.MaxPort {
+		return fmt.Errorf("port %d out of range (%d-%d)", p, portspec.MinUIPort, portspec.MaxPort)
 	}
 	return nil
-}
-
-func parsePortRange(s string) (int32, int32, error) {
-	parts := strings.SplitN(s, "-", 2)
-	if len(parts) != 2 {
-		return 0, 0, fmt.Errorf("port range must look like 2012-2022")
-	}
-	lo, err1 := strconv.Atoi(strings.TrimSpace(parts[0]))
-	hi, err2 := strconv.Atoi(strings.TrimSpace(parts[1]))
-	if err1 != nil || err2 != nil {
-		return 0, 0, fmt.Errorf("port range must look like 2012-2022")
-	}
-	if lo < minPort || lo > maxPort || hi < minPort || hi > maxPort {
-		return 0, 0, fmt.Errorf("port range must be within %d-%d", minPort, maxPort)
-	}
-	if lo >= hi {
-		return 0, 0, fmt.Errorf("port range start must be below end")
-	}
-	return int32(lo), int32(hi), nil
 }

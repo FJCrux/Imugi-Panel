@@ -40,16 +40,16 @@ func (s *Server) connectionIsSecure(r *http.Request) bool {
 }
 
 type dashboardResponse struct {
-	MitaStatus     string          `json:"mitaStatus"`
-	MitaVersion    string          `json:"mitaVersion"`
-	Restarts       int             `json:"restarts"`
-	MitaUptime     int64           `json:"mitaUptimeSeconds"`
-	SessionCount   int             `json:"sessionCount"`
-	UserCount      int             `json:"userCount"`
+	MitaStatus   string `json:"mitaStatus"`
+	MitaVersion  string `json:"mitaVersion"`
+	Restarts     int    `json:"restarts"`
+	MitaUptime   int64  `json:"mitaUptimeSeconds"`
+	SessionCount int    `json:"sessionCount"`
+	UserCount    int    `json:"userCount"`
 	// ActiveUserCount is how many users transferred data within onlineWindow.
-	ActiveUserCount int `json:"activeUserCount"`
-	Metrics        json.RawMessage `json:"metrics"`
-	InsecureAccess bool            `json:"insecureAccess"`
+	ActiveUserCount int             `json:"activeUserCount"`
+	Metrics         json.RawMessage `json:"metrics"`
+	InsecureAccess  bool            `json:"insecureAccess"`
 	// Warnings are hardening hints shown at the top of the dashboard.
 	Warnings []string `json:"warnings"`
 }

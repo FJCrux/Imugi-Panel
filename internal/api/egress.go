@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	pb "github.com/enfein/mieru/v3/pkg/appctl/appctlpb"
+	"golang.org/x/net/idna"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -64,7 +65,17 @@ func (s *Server) handleGetEgress(w http.ResponseWriter, r *http.Request) {
 	}
 	out := egressConfig{Proxies: []egressProxy{}, Rules: []egressRule{}}
 	eg := cfg.GetEgress()
+	// Chain peers are injected into mita's egress at build time (see
+	// buildEgress); they are not part of the user-editable proxy list. Echoing
+	// them back here would make the next PUT collide with the peer names.
+	peerNames := map[string]bool{}
+	if s.Peers != nil {
+		peerNames = s.Peers.Names()
+	}
 	for _, p := range eg.GetProxies() {
+		if peerNames[p.GetName()] {
+			continue
+		}
 		out.Proxies = append(out.Proxies, egressProxy{
 			Name:     p.GetName(),
 			Host:     p.GetHost(),
@@ -126,10 +137,12 @@ func (s *Server) applyEgress(ctx context.Context) error {
 func (s *Server) buildEgress(in egressConfig) (*pb.Egress, error) {
 	names := map[string]bool{}
 	// Chain peers appear as egress proxies too, and rules may reference them.
+	peerNames := map[string]bool{}
 	var peerProxies []*pb.EgressProxy
 	if s.Peers != nil {
 		peerProxies = s.Peers.EgressProxies()
-		for name := range s.Peers.Names() {
+		peerNames = s.Peers.Names()
+		for name := range peerNames {
 			names[name] = true
 		}
 	}
@@ -137,6 +150,9 @@ func (s *Server) buildEgress(in egressConfig) (*pb.Egress, error) {
 	for _, p := range in.Proxies {
 		if p.Name == "" {
 			return nil, fmt.Errorf("every outbound proxy needs a name")
+		}
+		if peerNames[p.Name] {
+			return nil, fmt.Errorf("proxy name %q is already used by a chain peer (peers are added to egress automatically - reference %q in a rule instead of re-adding it)", p.Name, p.Name)
 		}
 		if names[p.Name] {
 			return nil, fmt.Errorf("duplicate proxy name %q", p.Name)
@@ -170,6 +186,13 @@ func (s *Server) buildEgress(in egressConfig) (*pb.Egress, error) {
 			return nil, fmt.Errorf("rule %d has an invalid action %q", i+1, rule.Action)
 		}
 		domains := cleanList(rule.Domains)
+		for j, d := range domains {
+			nd, err := normalizeDomain(d)
+			if err != nil {
+				return nil, fmt.Errorf("rule %d has an invalid domain %q: %v", i+1, d, err)
+			}
+			domains[j] = nd
+		}
 		cidrs := cleanList(rule.Cidrs)
 		geo := cleanList(rule.Geo)
 		if len(domains) == 0 && len(cidrs) == 0 && len(geo) == 0 {
@@ -217,6 +240,28 @@ func (s *Server) buildEgress(in egressConfig) (*pb.Egress, error) {
 		return nil, nil // clearing egress
 	}
 	return &pb.Egress{Proxies: proxies, Rules: rules}, nil
+}
+
+// normalizeDomain converts a UI domain pattern into what mita actually
+// matches. mita has no wildcards other than a bare "*": an entry matches the
+// domain exactly or as a dot-separated suffix ("ru" matches "2ip.ru"). So
+// "*.example.com" is rewritten to "example.com", and IDN names are converted
+// to punycode because clients send ASCII FQDNs ("рф" would never match).
+func normalizeDomain(d string) (string, error) {
+	if d == "*" {
+		return d, nil
+	}
+	d = strings.ToLower(strings.TrimSuffix(d, "."))
+	d = strings.TrimPrefix(d, "*.")
+	d = strings.TrimPrefix(d, ".")
+	if d == "" {
+		return "", fmt.Errorf("empty domain")
+	}
+	ascii, err := idna.Lookup.ToASCII(d)
+	if err != nil {
+		return "", err
+	}
+	return ascii, nil
 }
 
 func orEmpty(in []string) []string {

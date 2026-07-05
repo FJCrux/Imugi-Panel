@@ -11,6 +11,10 @@ services:
     image: ghcr.io/fjcrux/imugi-panel:${IMUGI_PANEL_TAG:-latest}
     container_name: imugi-panel
     restart: unless-stopped
+    # Nothing in the container legitimately elevates privileges (no setuid
+    # binaries are needed), so turn the escalation path off.
+    security_opt:
+      - no-new-privileges:true
     # Bridge networking: the panel and the proxy ports are published explicitly.
     ports:
       # Panel — published on PANEL_BIND_IP (default 127.0.0.1, i.e. loopback

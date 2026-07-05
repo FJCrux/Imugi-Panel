@@ -10,8 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
-	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -23,6 +21,7 @@ import (
 
 	"github.com/fjcrux/mieru-web-ui/internal/api"
 	"github.com/fjcrux/mieru-web-ui/internal/auth"
+	"github.com/fjcrux/mieru-web-ui/internal/backup"
 	"github.com/fjcrux/mieru-web-ui/internal/chain"
 	"github.com/fjcrux/mieru-web-ui/internal/geoip"
 	"github.com/fjcrux/mieru-web-ui/internal/metrics"
@@ -49,106 +48,6 @@ func boolEnv(key string) bool {
 		return true
 	}
 	return false
-}
-
-// applyPendingRestore moves files staged by the restore endpoint into their
-// live locations, then clears the staging dir. It runs before the store is
-// opened so replacing the live panel.db is safe. A missing staging dir is a
-// no-op.
-func applyPendingRestore(staging, dbPath, geoDir, peersDir, mitaConfig string) error {
-	if _, err := os.Stat(staging); err != nil {
-		return nil
-	}
-	log.Print("restore: applying staged backup")
-	if err := replaceFile(filepath.Join(staging, "panel.db"), dbPath); err != nil {
-		return fmt.Errorf("restore panel.db: %w", err)
-	}
-	// Drop the old WAL/SHM sidecars so they don't fight the restored db.
-	_ = os.Remove(dbPath + "-wal")
-	_ = os.Remove(dbPath + "-shm")
-
-	if src := filepath.Join(staging, "mita", "server.conf.pb"); fileExists(src) {
-		if err := replaceFile(src, mitaConfig); err != nil {
-			return fmt.Errorf("restore mita config: %w", err)
-		}
-	}
-	if err := replaceDir(filepath.Join(staging, "geoip"), geoDir); err != nil {
-		return fmt.Errorf("restore geoip: %w", err)
-	}
-	if err := replaceDir(filepath.Join(staging, "peers"), peersDir); err != nil {
-		return fmt.Errorf("restore peers: %w", err)
-	}
-	if err := os.RemoveAll(staging); err != nil {
-		return err
-	}
-	log.Print("restore: applied successfully")
-	return nil
-}
-
-func fileExists(p string) bool { _, err := os.Stat(p); return err == nil }
-
-// replaceFile copies src over dst atomically (copy to a temp then rename),
-// which is safe even when src and dst are on different filesystems.
-func replaceFile(src, dst string) error {
-	if err := os.MkdirAll(filepath.Dir(dst), 0o700); err != nil {
-		return err
-	}
-	tmp := dst + ".restore-tmp"
-	if err := copyFile(src, tmp); err != nil {
-		return err
-	}
-	return os.Rename(tmp, dst)
-}
-
-// replaceDir replaces dst with the contents of src (a no-op if src is absent).
-func replaceDir(src, dst string) error {
-	if _, err := os.Stat(src); err != nil {
-		return nil
-	}
-	if err := os.RemoveAll(dst); err != nil {
-		return err
-	}
-	return copyTree(src, dst)
-}
-
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
-		return err
-	}
-	return out.Close()
-}
-
-func copyTree(src, dst string) error {
-	if err := os.MkdirAll(dst, 0o700); err != nil {
-		return err
-	}
-	entries, err := os.ReadDir(src)
-	if err != nil {
-		return err
-	}
-	for _, e := range entries {
-		s, d := filepath.Join(src, e.Name()), filepath.Join(dst, e.Name())
-		if e.IsDir() {
-			if err := copyTree(s, d); err != nil {
-				return err
-			}
-			continue
-		}
-		if err := copyFile(s, d); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // seedSetting stores value under key only if the key is currently unset and
@@ -191,6 +90,29 @@ func noindex(next http.Handler) http.Handler {
 		w.Header().Set("X-Robots-Tag", "noindex, nofollow, noarchive")
 		next.ServeHTTP(w, r)
 	})
+}
+
+// securityHeaders sets browser hardening headers on every response. The CSP
+// fits the embedded SPA: everything is same-origin except the inline base
+// script webfs injects (allowed by hash) and naive-ui's runtime styles.
+// Handlers that need a different policy (the share page) override it.
+func securityHeaders(hsts bool, baseScriptHash string) func(http.Handler) http.Handler {
+	csp := "default-src 'self'; script-src 'self' '" + baseScriptHash + "'; " +
+		"style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; " +
+		"connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			h := w.Header()
+			h.Set("Content-Security-Policy", csp)
+			h.Set("X-Content-Type-Options", "nosniff")
+			h.Set("X-Frame-Options", "DENY")
+			h.Set("Referrer-Policy", "no-referrer")
+			if hsts {
+				h.Set("Strict-Transport-Security", "max-age=63072000")
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // metricsCollector samples panel/mita state for the OTel exporter.
@@ -246,15 +168,20 @@ func main() {
 
 	// Resolve the paths that make up the panel's state, shared by the store,
 	// geoip/chain init, and the backup/restore endpoints.
-	dbPath := filepath.Join(dataDir, "panel.db")
-	geoDir := envOr("GEOIP_DIR", filepath.Join(dataDir, "geoip"))
-	peersDir := filepath.Join(dataDir, "peers")
-	mitaConfigFile := envOr("MITA_CONFIG_FILE", "/etc/mita/server.conf.pb")
-	restoreStaging := filepath.Join(dataDir, ".restore")
+	statePaths := backup.Paths{
+		DBPath:         filepath.Join(dataDir, "panel.db"),
+		GeoDir:         envOr("GEOIP_DIR", filepath.Join(dataDir, "geoip")),
+		PeersDir:       filepath.Join(dataDir, "peers"),
+		MitaConfig:     envOr("MITA_CONFIG_FILE", "/etc/mita/server.conf.pb"),
+		RestoreStaging: filepath.Join(dataDir, ".restore"),
+	}
+	dbPath := statePaths.DBPath
+	geoDir := statePaths.GeoDir
+	mitaConfigFile := statePaths.MitaConfig
 
 	// Apply a restore staged by the restore endpoint before opening anything,
 	// so swapping the live panel.db is safe.
-	if err := applyPendingRestore(restoreStaging, dbPath, geoDir, peersDir, mitaConfigFile); err != nil {
+	if err := backup.ApplyPending(statePaths); err != nil {
 		log.Printf("apply pending restore: %v", err)
 	}
 
@@ -325,7 +252,7 @@ func main() {
 	}
 
 	mieruBinary := envOr("MIERU_BINARY", "/usr/local/bin/mieru")
-	peers, err := chain.New(mieruBinary, peersDir, st)
+	peers, err := chain.New(mieruBinary, statePaths.PeersDir, st)
 	if err != nil {
 		log.Fatalf("init chain: %v", err)
 	}
@@ -346,9 +273,11 @@ func main() {
 		log.Printf("panel URL: %s%s", pu, basePath)
 	}
 
-	a := auth.New(st, auth.DefaultSessionTTL, tlsCert != "")
+	// Secure cookies whenever the browser reaches the panel over HTTPS: either
+	// the panel terminates TLS itself, or a trusted reverse proxy does.
+	a := auth.New(st, auth.DefaultSessionTTL, tlsCert != "" || trustProxy)
 	srv := &api.Server{Mita: mita, Store: st, Auth: a, Geo: geo, Peers: peers, SharePath: sharePath, PortsManaged: proxyPorts != "", PanelPort: panelPort, TLSEnabled: tlsCert != "", TrustProxy: trustProxy, Version: version, Updates: api.NewUpdateChecker(!boolEnv("PANEL_DISABLE_UPDATE_CHECK")),
-		Backup: &api.BackupPaths{DBPath: dbPath, GeoDir: geoDir, PeersDir: peersDir, MitaConfig: mitaConfigFile, RestoreStaging: restoreStaging}}
+		Backup: &statePaths}
 	srv.ActiveBasePath = basePath
 	srv.ActiveSharePath = sharePath
 	// Restart = graceful shutdown; a Docker restart policy brings the panel
@@ -408,8 +337,10 @@ func main() {
 	}
 
 	// Reject requests with an unexpected Host (when a panel URL is configured),
-	// then count them if metrics are on.
-	var handler http.Handler = noindex(srv.HostGuard(root))
+	// then count them if metrics are on. HSTS only makes sense when browsers
+	// reach the panel over HTTPS (own TLS or a trusted terminating proxy).
+	harden := securityHeaders(tlsCert != "" || trustProxy, webfs.BaseScriptHash(basePath))
+	var handler http.Handler = harden(noindex(srv.HostGuard(root)))
 	if reqMiddleware != nil {
 		handler = reqMiddleware(handler)
 	}

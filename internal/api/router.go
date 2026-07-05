@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/fjcrux/mieru-web-ui/internal/auth"
+	"github.com/fjcrux/mieru-web-ui/internal/backup"
 	"github.com/fjcrux/mieru-web-ui/internal/store"
 )
 
@@ -53,7 +54,7 @@ type Server struct {
 	// Updates checks GitHub for a newer release (nil disables the check).
 	Updates *updateChecker
 	// Backup locates panel state for the backup/restore endpoints (nil = off).
-	Backup *BackupPaths
+	Backup *backup.Paths
 }
 
 // Routes returns the /api handler tree with auth applied.
@@ -99,7 +100,7 @@ func (s *Server) Routes() http.Handler {
 	authed.HandleFunc("PUT /api/settings", s.handlePutSettings)
 	authed.HandleFunc("PUT /api/settings/password", s.handleChangePassword)
 
-	authed.HandleFunc("GET /api/backup", s.handleBackup)
+	authed.HandleFunc("POST /api/backup", s.handleBackup)
 	authed.HandleFunc("POST /api/restore", s.handleRestore)
 
 	mux := http.NewServeMux()

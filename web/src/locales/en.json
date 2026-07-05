@@ -144,7 +144,7 @@
     "rulesAlert": "Evaluated top to bottom; the first match wins. If nothing matches, traffic goes out directly. Use * to match everything.",
     "viaProxies": "via proxies",
     "matchGeo": "match geo categories (e.g. ru, ru-blocked)",
-    "domainPlaceholder": "domain (e.g. *.example.com or *)",
+    "domainPlaceholder": "domain suffix (example.com covers subdomains; * = any)",
     "cidrPlaceholder": "CIDR (e.g. 10.0.0.0/8 or *)",
     "proxyName": "Name",
     "proxyNameHelp": "A short label of your choice, e.g. 'exit'. You'll pick this name in routing rules to say 'send traffic through it'. Renaming breaks rules that use the old name.",

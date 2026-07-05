@@ -8,6 +8,8 @@ import (
 	"time"
 
 	pb "github.com/enfein/mieru/v3/pkg/appctl/appctlpb"
+
+	"github.com/fjcrux/mieru-web-ui/internal/portspec"
 )
 
 // mita couples users and ports: SetConfig rejects a config with users but no
@@ -29,7 +31,7 @@ func (s *Server) wantBindings(cfg *pb.ServerConfig) []*pb.PortBinding {
 	if spec == "" {
 		return nil
 	}
-	b, err := parseSpecToBindings(spec)
+	b, err := portspec.Parse(spec, portspec.MinUIPort)
 	if err != nil {
 		log.Printf("wantBindings: bad desired_ports %q: %v", spec, err)
 		return nil
@@ -59,7 +61,7 @@ func (s *Server) reconcileProxy(ctx context.Context, forceRestart bool) {
 		return
 	}
 	target := s.wantBindings(cfg)
-	if !samePortBindings(cfg.GetPortBindings(), target) {
+	if !portspec.Same(cfg.GetPortBindings(), target) {
 		if _, err := s.Mita.UpdateConfig(ctx, func(c *pb.ServerConfig) error {
 			s.applyPortInvariant(c)
 			return nil
@@ -118,20 +120,6 @@ func (s *Server) StartupReconcile(ctx context.Context) {
 		case <-time.After(400 * time.Millisecond):
 		}
 	}
-}
-
-func samePortBindings(a, b []*pb.PortBinding) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i].GetPort() != b[i].GetPort() ||
-			a[i].GetPortRange() != b[i].GetPortRange() ||
-			a[i].GetProtocol() != b[i].GetProtocol() {
-			return false
-		}
-	}
-	return true
 }
 
 func proto32(v int32) *int32 { return &v }

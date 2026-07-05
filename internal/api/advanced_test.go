@@ -64,7 +64,9 @@ func TestAdvancedToProtoRejectsBadInput(t *testing.T) {
 			a.TrafficPattern.Nonce.MaxLen = proto.Int32(2)
 		},
 		func(a *advancedConfig) { a.TrafficPattern.Nonce.CustomHexStrings = []string{"zz"} },
-		func(a *advancedConfig) { a.TrafficPattern.Nonce.CustomHexStrings = []string{"000102030405060708090a0b0c"} },
+		func(a *advancedConfig) {
+			a.TrafficPattern.Nonce.CustomHexStrings = []string{"000102030405060708090a0b0c"}
+		},
 		func(a *advancedConfig) { a.TrafficPattern.Padding.MaxEndPaddingLen = proto.Int32(300) },
 	}
 	for i, mutate := range bad {

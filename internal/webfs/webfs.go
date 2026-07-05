@@ -7,7 +7,9 @@ package webfs
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"embed"
+	"encoding/base64"
 	"io/fs"
 	"net/http"
 	"strings"
@@ -56,7 +58,7 @@ func buildIndex(sub fs.FS, basePath string) []byte {
 			"(or <code>cd web &amp;&amp; npm ci &amp;&amp; npm run build</code>) and rebuild.</p>")
 	}
 	inject := []byte("<base href=\"" + basePath + "/\">\n" +
-		"<script>window.__BASE__=" + jsString(basePath) + "</script>\n")
+		"<script>" + baseScript(basePath) + "</script>\n")
 	if i := bytes.Index(raw, []byte("<head>")); i >= 0 {
 		out := make([]byte, 0, len(raw)+len(inject))
 		out = append(out, raw[:i+len("<head>")]...)
@@ -70,4 +72,17 @@ func buildIndex(sub fs.FS, basePath string) []byte {
 
 func jsString(s string) string {
 	return "\"" + strings.ReplaceAll(s, "\"", "\\\"") + "\""
+}
+
+// baseScript is the body of the inline script buildIndex injects.
+func baseScript(basePath string) string {
+	return "window.__BASE__=" + jsString(basePath)
+}
+
+// BaseScriptHash returns the CSP source token ("sha256-...") allowing the
+// inline script buildIndex injects, so the panel can serve a CSP without
+// 'unsafe-inline' for scripts.
+func BaseScriptHash(basePath string) string {
+	sum := sha256.Sum256([]byte(baseScript(basePath)))
+	return "sha256-" + base64.StdEncoding.EncodeToString(sum[:])
 }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-package api
+package backup
 
 import (
 	"archive/tar"
@@ -22,20 +22,20 @@ func TestEncryptDecryptRoundTrip(t *testing.T) {
 	in, _ := os.Open(src)
 	defer in.Close()
 	enc, _ := os.Create(filepath.Join(dir, "enc"))
-	if err := encryptStream(in, enc, "correct horse"); err != nil {
+	if err := Encrypt(in, enc, "correct horse"); err != nil {
 		t.Fatal(err)
 	}
 	enc.Close()
 
 	encFile, _ := os.Open(filepath.Join(dir, "enc"))
 	defer encFile.Close()
-	if ok, _ := isEncrypted(encFile); !ok {
+	if ok, _ := IsEncrypted(encFile); !ok {
 		t.Fatal("encrypted file not detected by magic header")
 	}
 
 	// Correct passphrase recovers the plaintext.
 	var out bytes.Buffer
-	if err := decryptStream(encFile, &out, "correct horse"); err != nil {
+	if err := Decrypt(encFile, &out, "correct horse"); err != nil {
 		t.Fatalf("decrypt: %v", err)
 	}
 	if !bytes.Equal(out.Bytes(), plain) {
@@ -44,12 +44,12 @@ func TestEncryptDecryptRoundTrip(t *testing.T) {
 
 	// Wrong passphrase must fail authentication, not return garbage.
 	var bad bytes.Buffer
-	if err := decryptStream(encFile, &bad, "wrong"); err == nil {
+	if err := Decrypt(encFile, &bad, "wrong"); err == nil {
 		t.Fatal("expected auth failure with wrong passphrase")
 	}
 }
 
-func TestExtractArchiveRejectsTraversal(t *testing.T) {
+func TestExtractRejectsTraversal(t *testing.T) {
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
@@ -58,7 +58,7 @@ func TestExtractArchiveRejectsTraversal(t *testing.T) {
 	tw.Close()
 	gz.Close()
 
-	if err := extractArchive(&buf, t.TempDir()); err == nil {
+	if err := Extract(&buf, t.TempDir()); err == nil {
 		t.Fatal("expected path-traversal rejection")
 	}
 }

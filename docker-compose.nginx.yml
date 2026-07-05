@@ -17,6 +17,8 @@ services:
     image: ghcr.io/fjcrux/imugi-panel:${IMUGI_PANEL_TAG:-latest}
     container_name: imugi-panel
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     ports:
       # Only the mieru proxy ports are published; nginx does not touch them
       # (they speak the mieru protocol, not HTTP).

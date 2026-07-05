@@ -15,7 +15,9 @@ within a few days.
 - **The panel stores mieru user passwords in plaintext** in its SQLite DB
   (file mode 0600). This is required to regenerate client configs and share
   links, since mita only keeps hashes. Protect the `/data` volume; anyone who
-  reads it can impersonate your proxy users.
+  reads it can impersonate your proxy users. **Backups contain these secrets
+  too** (plus the admin password hash) — always set a backup passphrase, and
+  treat backup files like the credentials they hold.
 - **Share links and QR codes are secrets.** A `mierus://` / `mieru://` link
   contains a user's credentials. Send it over a trusted channel, and if one
   leaks, reset that user's password (which invalidates the old link).

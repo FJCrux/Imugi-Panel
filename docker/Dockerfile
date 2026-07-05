@@ -34,8 +34,11 @@ FROM ghcr.io/enfein/mita:${MITA_VERSION}
 COPY --from=go /mieru-web-ui /usr/local/bin/mieru-web-ui
 COPY --from=go /mieru /usr/local/bin/mieru
 
-# The panel supervises `mita run`; run as the built-in mita user and skip
-# the socket chown that requires the mita user/group to own /var/run/mita.
+# The panel supervises `mita run`. The container runs as root (the bind-mounted
+# /data and /etc/mita volumes are typically root-owned); to run it as the
+# image's non-root mita user instead, chown those volumes to 1000:1000 and set
+# `user: "1000:1000"` in a compose override. MITA_INSECURE_UDS skips the socket
+# chown so that rootless mode works too.
 ENV MITA_INSECURE_UDS=true \
     PANEL_PORT=8686 \
     PANEL_DATA_DIR=/data \
