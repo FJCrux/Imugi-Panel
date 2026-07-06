@@ -6,8 +6,11 @@
 # `make check-version` guards against drift. Bump both with scripts/update-mieru.sh.
 ARG MITA_VERSION=v3.34.0
 
+# Build stages run on the build platform and cross-compile for the target, so
+# a multi-arch build (amd64 + arm64) needs no QEMU emulation.
+
 # 1. Build the Vue SPA.
-FROM node:22-alpine AS web
+FROM --platform=$BUILDPLATFORM node:22-alpine AS web
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
@@ -15,7 +18,7 @@ COPY web/ ./
 RUN npm run build
 
 # 2. Build the Go binary with the SPA embedded.
-FROM golang:1.25-alpine AS go
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS go
 WORKDIR /src
 RUN apk add --no-cache git
 COPY go.mod go.sum ./
@@ -25,9 +28,12 @@ COPY . .
 # which from the /web workdir resolves to /internal/webfs/dist).
 COPY --from=web /internal/webfs/dist ./internal/webfs/dist
 ARG VERSION=dev
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /mieru-web-ui ./cmd/mieru-web-ui
+# TARGETOS/TARGETARCH come from buildx; empty under a plain `docker build`,
+# which makes Go fall back to the host platform.
+ARG TARGETOS TARGETARCH
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /mieru-web-ui ./cmd/mieru-web-ui
 # The mieru client, used to chain this panel's egress through another panel.
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /mieru github.com/enfein/mieru/v3/cmd/mieru
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /mieru github.com/enfein/mieru/v3/cmd/mieru
 
 # 3. Final image: mita daemon + panel in one container.
 FROM ghcr.io/enfein/mita:${MITA_VERSION}

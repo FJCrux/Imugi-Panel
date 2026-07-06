@@ -30,7 +30,8 @@ go vet ./... && go test ./... &&
 (cd web && npm run build)
 ```
 
-CI runs the same checks plus a full Docker build.
+CI runs the same checks on every branch push and fork PR; tag pushes
+additionally build and publish the Docker image.
 
 ## Bumping the mieru version
 

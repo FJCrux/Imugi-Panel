@@ -154,9 +154,9 @@ make test && make docker
 
 ## Releases
 
-Pushing a `vX.Y.Z` tag builds and publishes the image to
+Pushing a `vX.Y.Z` tag builds and publishes the image (amd64 + arm64) to
 `ghcr.io/fjcrux/imugi-panel` (`X.Y.Z`, `X.Y`, `latest`) and creates a GitHub
-Release. Nothing is published from branch pushes.
+Release. Branch pushes only run the checks; nothing is published from them.
 
 ## Security
 
