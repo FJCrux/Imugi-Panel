@@ -14,19 +14,23 @@ the socket directory and use the default `unix://` target.
 
 ## Run the stack
 
-```bash
-# 1. Start mita with the management socket bridged to tcp://localhost:9090
-make dev-mita
+Start mita with the management socket bridged to `tcp://localhost:9090` — the
+container detaches once it's up — then run the backend on the host, pointed at
+the bridge and not supervising its own mita:
 
-# 2. Backend (host), pointed at the bridge, not supervising its own mita
+```bash
+make dev-mita &&
 PANEL_DATA_DIR=./.devdata \
 PANEL_ADMIN_USER=admin PANEL_ADMIN_PASSWORD=devpass \
 MITA_RPC_TARGET=tcp://localhost:9090 \
 go run ./cmd/mieru-web-ui --no-supervise
+```
 
-# 3. Frontend dev server (proxies /api to :8686)
+In a second terminal, run the frontend dev server (it proxies `/api` to
+`:8686`), then open <http://localhost:5173>:
+
+```bash
 cd web && npm install && npm run dev
-# open http://localhost:5173
 ```
 
 `--no-supervise` tells the panel not to spawn its own `mita`; it talks to the

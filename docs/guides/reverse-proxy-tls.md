@@ -11,13 +11,25 @@ network. The panel's HTTP port is **not published to the host at all** — nginx
 reaches it by service name (`http://imugi-panel:8686`) and is the only web
 entry point; the panel itself never listens on 443:
 
-```sh
-cp .env.example .env    # set PANEL_DOMAIN and PANEL_URL
-# one-time certificate bootstrap (before the first start):
-docker compose -f docker-compose.nginx.yml run --rm -p 80:80 certbot \
-  certonly --standalone -d vpn.example.com --agree-tos -m you@example.com
-docker compose -f docker-compose.nginx.yml up -d
-```
+1. Copy the config and set `PANEL_DOMAIN` and `PANEL_URL` in `.env`:
+
+   ```sh
+   cp .env.example .env
+   ```
+
+2. Bootstrap the certificate — one-time, before the first start. Replace
+   `vpn.example.com` and `you@example.com` with your domain and email:
+
+   ```sh
+   docker compose -f docker-compose.nginx.yml run --rm -p 80:80 certbot \
+     certonly --standalone -d vpn.example.com --agree-tos -m you@example.com
+   ```
+
+3. Start the stack:
+
+   ```sh
+   docker compose -f docker-compose.nginx.yml up -d
+   ```
 
 Renewal is automatic: the `certbot` service renews over webroot and nginx
 reloads itself every 6 hours to pick up rotated certificates. The nginx vhost

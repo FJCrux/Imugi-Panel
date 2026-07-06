@@ -54,36 +54,44 @@ bundles and supervises `mita`.
 ## Quick start (Docker)
 
 ```bash
-git clone https://github.com/fjcrux/mieru-web-ui
-cd mieru-web-ui
-cp .env.example .env        # edit as needed
-docker compose up -d        # pulls ghcr.io/fjcrux/imugi-panel:latest
-docker compose logs | grep -A4 "Panel admin"   # generated password on first run
+git clone https://github.com/fjcrux/mieru-web-ui &&
+cd mieru-web-ui &&
+cp .env.example .env &&
+docker compose up -d
 ```
 
-To build from source instead:
+This pulls `ghcr.io/fjcrux/imugi-panel:latest` and starts the panel with
+working defaults; tweak [`.env`](.env.example) later as needed. On first run
+the panel generates the admin password — print it with:
+
+```bash
+docker compose logs | grep -A4 "Panel admin"
+```
+
+First login is `admin` with that password. Change it under **Settings**.
+
+To build from source instead of pulling the image:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 ```
 
 The compose file publishes the panel on `127.0.0.1:8686` and the proxy ports in
-bridge mode. Reach the panel via an SSH tunnel (or a
-[reverse proxy](docs/guides/reverse-proxy-tls.md)):
+bridge mode. Reach the panel via an SSH tunnel — replace `user@your-server`
+with your SSH login, then open <http://localhost:8686>:
 
 ```bash
-ssh -L 8686:127.0.0.1:8686 user@your-server   # then open http://localhost:8686
+ssh -L 8686:127.0.0.1:8686 user@your-server
 ```
 
-For a production setup with a domain, use the bundled nginx compose instead —
-it terminates TLS in a dockerized nginx on the same network and never exposes
-the panel port itself:
+…or via a [reverse proxy](docs/guides/reverse-proxy-tls.md). For a production
+setup with a domain, use the bundled nginx compose instead — it terminates TLS
+in a dockerized nginx on the same network and never exposes the panel port
+itself (see the reverse-proxy guide):
 
 ```bash
-docker compose -f docker-compose.nginx.yml up -d   # see the reverse-proxy guide
+docker compose -f docker-compose.nginx.yml up -d
 ```
-
-First login is `admin` with the printed password. Change it under **Settings**.
 
 ### First-time setup
 
@@ -131,9 +139,17 @@ TLS/reverse-proxy, hardening, routing & GeoIP, chaining panels, sharing, metrics
 
 ## Updating mieru/mita
 
+One script bumps `go.mod`, the Dockerfiles, `.env`, and compose to the given
+version:
+
 ```bash
-scripts/update-mieru.sh v3.35.0   # bumps go.mod, Dockerfiles, .env, compose
-make test && make docker          # verify and rebuild
+scripts/update-mieru.sh v3.35.0
+```
+
+Then verify and rebuild:
+
+```bash
+make test && make docker
 ```
 
 ## Releases

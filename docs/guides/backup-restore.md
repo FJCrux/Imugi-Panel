@@ -36,17 +36,18 @@ Do this over HTTPS — the download stream contains credentials.
 For a complete "move to a new server" bundle:
 
 ```sh
-sh scripts/backup.sh          # writes imugi-panel-backup-<timestamp>.tar.gz
+sh scripts/backup.sh
 ```
 
-It archives `.env`, `panel-data/`, and `mita-config/`. For a fully consistent
-`panel.db`, stop the stack first (`docker compose stop`) or use Option A.
+It writes `imugi-panel-backup-<timestamp>.tar.gz` with `.env`, `panel-data/`,
+and `mita-config/` inside. For a fully consistent `panel.db`, stop the stack
+first (`docker compose stop`) or use Option A.
 
-Restore on the new host:
+Restore on the new host — replace the file name with your actual backup:
 
 ```sh
-docker compose down
-tar xzf imugi-panel-backup-<timestamp>.tar.gz
+docker compose down &&
+tar xzf imugi-panel-backup-<timestamp>.tar.gz &&
 docker compose up -d
 ```
 

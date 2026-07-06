@@ -5,21 +5,29 @@ Thanks for your interest in mieru-web-ui.
 ## Development setup
 
 See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the full loop. In short:
+start a real mita in Docker (socket bridged to `tcp://localhost:9090`) and the
+backend on the host:
 
 ```bash
-make dev-mita     # real mita in Docker, socket bridged to tcp://localhost:9090
-# backend (host):
+make dev-mita &&
 MITA_RPC_TARGET=tcp://localhost:9090 go run ./cmd/mieru-web-ui --no-supervise
-# frontend (host):
+```
+
+then the frontend dev server in a second terminal:
+
+```bash
 cd web && npm install && npm run dev
 ```
 
 ## Before opening a PR
 
+Check that the mieru version pins are in sync, run the Go checks, and make sure
+the SPA type-checks and builds:
+
 ```bash
-make check-version   # mieru version pins in sync
-go vet ./... && go test ./...
-cd web && npm run build   # SPA type-checks and builds
+make check-version &&
+go vet ./... && go test ./... &&
+(cd web && npm run build)
 ```
 
 CI runs the same checks plus a full Docker build.
@@ -37,7 +45,7 @@ Then run the probe against the new mita to confirm it still works with the
 panel:
 
 ```bash
-make dev-mita
+make dev-mita &&
 MITA_RPC_TARGET=tcp://localhost:9090 PROBE_PORT_HOST=127.0.0.1 go run ./cmd/probe
 ```
 
