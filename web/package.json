@@ -13,7 +13,7 @@
     "naive-ui": "^2.41.0",
     "qrcode": "^1.5.4",
     "vue": "^3.5.13",
-    "vue-i18n": "^11.4.2",
+    "vue-i18n": "^11.4.6",
     "vue-router": "5.1.0"
   },
   "devDependencies": {
